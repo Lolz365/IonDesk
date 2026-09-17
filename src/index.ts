@@ -144,13 +144,15 @@ export async function createAndSaveTicket(
   return ticket;
 }
 
-export function listTicketsPage(
+export async function listTicketsPage(
   repository: TicketRepository,
   input: ListTicketsPageInput,
 ): Promise<TicketPage> {
   return repository.listPage({
     ...input,
-    ...(input.cursor === undefined ? {} : { cursor: input.cursor.trim() }),
+    ...(input.cursor === undefined
+      ? {}
+      : { cursor: required(input.cursor, "cursor") }),
   });
 }
 
