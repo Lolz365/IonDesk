@@ -99,6 +99,15 @@ export function validatePhotoUpload(input: PhotoUploadInput): PhotoUpload {
   });
 }
 
+export async function validateAndSavePhotoUpload(
+  photoStorage: PhotoStorage,
+  input: PhotoUploadInput,
+): Promise<PhotoUpload> {
+  const upload = validatePhotoUpload(input);
+  await photoStorage.save(upload);
+  return upload;
+}
+
 export function createTicket(input: CreateTicketInput): Ticket {
   const description = input.description?.trim();
   const photoIds = input.photoIds.map((photoId, index) =>

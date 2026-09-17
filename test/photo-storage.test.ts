@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { validatePhotoUpload } from "../src/index.ts";
+import {
+  validateAndSavePhotoUpload,
+  validatePhotoUpload,
+} from "../src/index.ts";
 import {
   DuplicateRecordError,
   InMemoryPhotoStorage,
@@ -29,4 +32,21 @@ test("photo storage snapshots validated metadata and rejects duplicate ids", asy
     (error: unknown) =>
       error instanceof DuplicateRecordError && error.id === "photo-1",
   );
+});
+
+test("photo upload application validates and saves through storage", async () => {
+  const storage = new InMemoryPhotoStorage();
+
+  const upload = await validateAndSavePhotoUpload(storage, {
+    id: "  photo-2  ",
+    contentType: "  IMAGE/PNG  ",
+    sizeBytes: 84,
+  });
+
+  assert.deepEqual(upload, {
+    id: "photo-2",
+    contentType: "image/png",
+    sizeBytes: 84,
+  });
+  assert.deepEqual(await storage.findById("photo-2"), upload);
 });
