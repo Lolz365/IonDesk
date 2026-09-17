@@ -172,6 +172,32 @@ test("vision analysis sanitizes provider failures", async () => {
   );
 });
 
+test("vision analysis sanitizes malformed provider responses", async () => {
+  const repository = new InMemoryTicketRepository();
+  await repository.save(
+    createTicket({
+      id: "ticket-001",
+      title: "Leaking valve",
+      photoIds: ["photo-1"],
+    }),
+  );
+  const provider = {
+    async analyzePhoto() {
+      return null;
+    },
+  } as unknown as VisionProvider;
+
+  await assert.rejects(
+    analyzeTicketPhoto(repository, provider, {
+      ticketId: "ticket-001",
+      photoId: "photo-1",
+    }),
+    (error: unknown) =>
+      error instanceof Error &&
+      error.message === 'Vision analysis failed for photo "photo-1"',
+  );
+});
+
 test("fallback vision analysis returns a needs-review draft without inferred signals", async () => {
   const repository = new InMemoryTicketRepository();
   const provider: VisionProvider = new FallbackVisionProvider();

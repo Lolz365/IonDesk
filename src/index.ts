@@ -273,13 +273,12 @@ export async function analyzeTicketPhoto(
       `Photo with id "${normalizedInput.photoId}" is not attached to ticket "${normalizedInput.ticketId}"`,
     );
   }
-  let signals: readonly PhotoSignal[];
   try {
-    signals = await provider.analyzePhoto(normalizedInput);
+    const signals = await provider.analyzePhoto(normalizedInput);
+    return analyzePhotoDraft({ ...normalizedInput, signals });
   } catch {
     throw new Error(
       `Vision analysis failed for photo "${normalizedInput.photoId}"`,
     );
   }
-  return analyzePhotoDraft({ ...normalizedInput, signals });
 }
