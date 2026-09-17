@@ -219,15 +219,21 @@ export async function analyzeTicketPhoto(
   provider: VisionProvider,
   input: VisionAnalysisInput,
 ): Promise<PhotoAnalysisDraft> {
-  const ticket = await repository.findById(input.ticketId);
+  const normalizedInput = {
+    ticketId: required(input.ticketId, "ticketId"),
+    photoId: required(input.photoId, "photoId"),
+  };
+  const ticket = await repository.findById(normalizedInput.ticketId);
   if (!ticket) {
-    throw new Error(`Ticket with id "${input.ticketId}" does not exist`);
-  }
-  if (!ticket.photoIds.includes(input.photoId)) {
     throw new Error(
-      `Photo with id "${input.photoId}" is not attached to ticket "${input.ticketId}"`,
+      `Ticket with id "${normalizedInput.ticketId}" does not exist`,
     );
   }
-  const signals = await provider.analyzePhoto(input);
-  return analyzePhotoDraft({ ...input, signals });
+  if (!ticket.photoIds.includes(normalizedInput.photoId)) {
+    throw new Error(
+      `Photo with id "${normalizedInput.photoId}" is not attached to ticket "${normalizedInput.ticketId}"`,
+    );
+  }
+  const signals = await provider.analyzePhoto(normalizedInput);
+  return analyzePhotoDraft({ ...normalizedInput, signals });
 }
