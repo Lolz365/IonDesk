@@ -186,6 +186,15 @@ test("ticket repository lists immutable deterministic pages", async () => {
   );
 });
 
+test("ticket repository rejects a blank pagination cursor", async () => {
+  const repository = new InMemoryTicketRepository();
+
+  await assert.rejects(
+    repository.listPage({ limit: 1, cursor: "   " }),
+    /cursor is required/,
+  );
+});
+
 test("ticket repository rejects duplicate ids", async () => {
   const repository = new InMemoryTicketRepository();
   const ticket = createTicket({ id: "ticket-1", title: "First", photoIds: [] });

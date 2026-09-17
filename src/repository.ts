@@ -52,6 +52,9 @@ export class InMemoryTicketRepository implements TicketRepository {
     if (!Number.isInteger(input.limit) || input.limit <= 0) {
       throw new Error("limit must be a positive integer");
     }
+    if (input.cursor !== undefined && !input.cursor.trim()) {
+      throw new Error("cursor is required");
+    }
 
     const tickets = [...this.#tickets.values()];
     let startIndex = 0;
