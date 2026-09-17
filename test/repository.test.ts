@@ -5,6 +5,7 @@ import {
   createAndSaveTicket,
   createAndSaveTicketWithPhotos,
   createTicket,
+  listTicketsPage,
   resolveTicket,
   type Ticket,
 } from "../src/index.ts";
@@ -86,6 +87,24 @@ test("ticket application rejects resolving a missing ticket", async () => {
     resolveTicket(repository, "ticket-missing"),
     /Ticket with id "ticket-missing" does not exist/,
   );
+});
+
+test("ticket application trims a cursor when listing a page", async () => {
+  const repository = new InMemoryTicketRepository();
+  const expectedPage = Object.freeze({ tickets: Object.freeze([]) });
+  let receivedInput: unknown;
+  repository.listPage = async (input) => {
+    receivedInput = input;
+    return expectedPage;
+  };
+
+  const page = await listTicketsPage(repository, {
+    limit: 5,
+    cursor: "  ticket-1  ",
+  });
+
+  assert.strictEqual(page, expectedPage);
+  assert.deepEqual(receivedInput, { limit: 5, cursor: "ticket-1" });
 });
 
 test("ticket repository saves snapshots and lists them in insertion order", async () => {

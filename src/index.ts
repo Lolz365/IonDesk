@@ -1,4 +1,8 @@
-import type { TicketRepository } from "./repository.ts";
+import type {
+  ListTicketsPageInput,
+  TicketPage,
+  TicketRepository,
+} from "./repository.ts";
 import type { PhotoStorage } from "./photo-storage.ts";
 import type {
   VisionAnalysisInput,
@@ -138,6 +142,16 @@ export async function createAndSaveTicket(
   const ticket = createTicket(input);
   await repository.save(ticket);
   return ticket;
+}
+
+export function listTicketsPage(
+  repository: TicketRepository,
+  input: ListTicketsPageInput,
+): Promise<TicketPage> {
+  return repository.listPage({
+    ...input,
+    ...(input.cursor === undefined ? {} : { cursor: input.cursor.trim() }),
+  });
 }
 
 export async function createAndSaveTicketWithPhotos(
