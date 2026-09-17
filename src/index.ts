@@ -75,7 +75,7 @@ export async function resolveTicket(
   repository: TicketRepository,
   id: string,
 ): Promise<Ticket | undefined> {
-  return repository.resolve(id);
+  return repository.resolve(required(id, "id"));
 }
 
 export function analyzePhotoDraft(

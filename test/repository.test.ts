@@ -38,6 +38,12 @@ test("ticket application resolves a saved ticket through a repository", async ()
   assert.deepEqual(resolvedTicket, { ...ticket, status: "resolved" });
 });
 
+test("ticket application rejects a blank ticket id when resolving", async () => {
+  const repository = new InMemoryTicketRepository();
+
+  await assert.rejects(resolveTicket(repository, "  "), /id is required/);
+});
+
 test("ticket repository saves snapshots and lists them in insertion order", async () => {
   const repository = new InMemoryTicketRepository();
   const first = createTicket({
