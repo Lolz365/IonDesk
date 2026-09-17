@@ -42,6 +42,18 @@ export class InMemoryTicketRepository implements TicketRepository {
       throw new DuplicateRecordError(ticket.id);
     }
 
+    const photoIdIndexes = new Map<string, number>();
+    ticket.photoIds.forEach((photoId, index) => {
+      const normalizedPhotoId = photoId.trim();
+      const duplicateIndex = photoIdIndexes.get(normalizedPhotoId);
+      if (duplicateIndex !== undefined) {
+        throw new Error(
+          `photoIds[${index}] duplicates photoIds[${duplicateIndex}]`,
+        );
+      }
+      photoIdIndexes.set(normalizedPhotoId, index);
+    });
+
     const snapshot = Object.freeze({
       ...ticket,
       photoIds: Object.freeze([...ticket.photoIds]),
