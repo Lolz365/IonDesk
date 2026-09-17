@@ -122,6 +122,21 @@ test("ticket application rejects a blank pagination cursor before querying the r
   assert.equal(listPageCallCount, 0);
 });
 
+test("ticket application rejects an invalid page limit before querying the repository", async () => {
+  const repository = new InMemoryTicketRepository();
+  let listPageCallCount = 0;
+  repository.listPage = async () => {
+    listPageCallCount += 1;
+    return { tickets: [] };
+  };
+
+  await assert.rejects(
+    listTicketsPage(repository, { limit: 0 }),
+    /limit must be a positive integer/,
+  );
+  assert.equal(listPageCallCount, 0);
+});
+
 test("ticket repository saves snapshots and lists them in insertion order", async () => {
   const repository = new InMemoryTicketRepository();
   const first = createTicket({

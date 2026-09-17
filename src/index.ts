@@ -148,6 +148,9 @@ export async function listTicketsPage(
   repository: TicketRepository,
   input: ListTicketsPageInput,
 ): Promise<TicketPage> {
+  if (!Number.isInteger(input.limit) || input.limit <= 0) {
+    throw new Error("limit must be a positive integer");
+  }
   return repository.listPage({
     ...input,
     ...(input.cursor === undefined
