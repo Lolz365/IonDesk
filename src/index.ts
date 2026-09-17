@@ -39,6 +39,26 @@ export interface PhotoAnalysisDraft {
   readonly summary: string;
 }
 
+const PHOTO_CONTENT_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+] as const;
+
+export type PhotoContentType = (typeof PHOTO_CONTENT_TYPES)[number];
+
+export interface PhotoUploadInput {
+  readonly id: string;
+  readonly contentType: string;
+  readonly sizeBytes: number;
+}
+
+export interface PhotoUpload {
+  readonly id: string;
+  readonly contentType: PhotoContentType;
+  readonly sizeBytes: number;
+}
+
 const HIGH_CONFIDENCE = 0.8;
 const REVIEW_CONFIDENCE = 0.5;
 
@@ -48,6 +68,26 @@ function required(value: string, field: string): string {
     throw new Error(`${field} is required`);
   }
   return normalized;
+}
+
+function isPhotoContentType(value: string): value is PhotoContentType {
+  return PHOTO_CONTENT_TYPES.some((supported) => supported === value);
+}
+
+export function validatePhotoUpload(input: PhotoUploadInput): PhotoUpload {
+  const contentType = required(input.contentType, "contentType").toLowerCase();
+  if (!isPhotoContentType(contentType)) {
+    throw new Error(`unsupported contentType: ${contentType}`);
+  }
+  if (!Number.isInteger(input.sizeBytes) || input.sizeBytes <= 0) {
+    throw new Error("sizeBytes must be a positive integer");
+  }
+
+  return Object.freeze({
+    id: required(input.id, "id"),
+    contentType,
+    sizeBytes: input.sizeBytes,
+  });
 }
 
 export function createTicket(input: CreateTicketInput): Ticket {
