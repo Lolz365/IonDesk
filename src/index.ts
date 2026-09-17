@@ -71,6 +71,13 @@ export async function createAndSaveTicket(
   return ticket;
 }
 
+export async function resolveTicket(
+  repository: TicketRepository,
+  id: string,
+): Promise<Ticket | undefined> {
+  return repository.resolve(id);
+}
+
 export function analyzePhotoDraft(
   input: PhotoAnalysisInput,
 ): PhotoAnalysisDraft {

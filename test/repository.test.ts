@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createAndSaveTicket, createTicket } from "../src/index.ts";
+import {
+  createAndSaveTicket,
+  createTicket,
+  resolveTicket,
+} from "../src/index.ts";
 import {
   DuplicateRecordError,
   InMemoryTicketRepository,
@@ -18,6 +22,20 @@ test("ticket application creates and saves through a repository", async () => {
 
   assert.equal(ticket.title, "Leaking valve");
   assert.deepEqual(await repository.findById("ticket-1"), ticket);
+});
+
+test("ticket application resolves a saved ticket through a repository", async () => {
+  const repository = new InMemoryTicketRepository();
+  const ticket = createTicket({
+    id: "ticket-1",
+    title: "Leaking valve",
+    photoIds: ["photo-1"],
+  });
+  await repository.save(ticket);
+
+  const resolvedTicket = await resolveTicket(repository, "ticket-1");
+
+  assert.deepEqual(resolvedTicket, { ...ticket, status: "resolved" });
 });
 
 test("ticket repository saves snapshots and lists them in insertion order", async () => {
