@@ -28,6 +28,33 @@ test("vision analysis rejects a missing ticket before calling the provider", asy
   assert.equal(providerCallCount, 0);
 });
 
+test("vision analysis rejects a photo not attached to the ticket before calling the provider", async () => {
+  const repository = new InMemoryTicketRepository();
+  await repository.save(
+    createTicket({
+      id: "ticket-001",
+      title: "Leaking valve",
+      photoIds: ["photo-attached"],
+    }),
+  );
+  let providerCallCount = 0;
+  const provider: VisionProvider = {
+    async analyzePhoto() {
+      providerCallCount += 1;
+      return [];
+    },
+  };
+
+  await assert.rejects(
+    analyzeTicketPhoto(repository, provider, {
+      ticketId: "ticket-001",
+      photoId: "photo-other",
+    }),
+    /Photo with id "photo-other" is not attached to ticket "ticket-001"/,
+  );
+  assert.equal(providerCallCount, 0);
+});
+
 test("fallback vision analysis returns a needs-review draft without inferred signals", async () => {
   const repository = new InMemoryTicketRepository();
   const provider: VisionProvider = new FallbackVisionProvider();
