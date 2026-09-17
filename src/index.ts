@@ -234,6 +234,9 @@ export async function analyzeTicketPhoto(
       `Ticket with id "${normalizedInput.ticketId}" does not exist`,
     );
   }
+  if (ticket.status === "resolved") {
+    throw new Error(`Ticket with id "${normalizedInput.ticketId}" is resolved`);
+  }
   if (!ticket.photoIds.includes(normalizedInput.photoId)) {
     throw new Error(
       `Photo with id "${normalizedInput.photoId}" is not attached to ticket "${normalizedInput.ticketId}"`,

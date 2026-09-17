@@ -55,6 +55,34 @@ test("vision analysis rejects a photo not attached to the ticket before calling 
   assert.equal(providerCallCount, 0);
 });
 
+test("vision analysis rejects a resolved ticket before calling the provider", async () => {
+  const repository = new InMemoryTicketRepository();
+  await repository.save(
+    createTicket({
+      id: "ticket-001",
+      title: "Leaking valve",
+      photoIds: ["photo-1"],
+    }),
+  );
+  await repository.resolve("ticket-001");
+  let providerCallCount = 0;
+  const provider: VisionProvider = {
+    async analyzePhoto() {
+      providerCallCount += 1;
+      return [];
+    },
+  };
+
+  await assert.rejects(
+    analyzeTicketPhoto(repository, provider, {
+      ticketId: "ticket-001",
+      photoId: "photo-1",
+    }),
+    /Ticket with id "ticket-001" is resolved/,
+  );
+  assert.equal(providerCallCount, 0);
+});
+
 test("vision analysis normalizes ids before lookup and provider calls", async () => {
   const repository = new InMemoryTicketRepository();
   await repository.save(
