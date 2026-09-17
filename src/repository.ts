@@ -1,8 +1,19 @@
 import type { Ticket } from "./index.ts";
 
+export interface ListTicketsPageInput {
+  readonly limit: number;
+  readonly cursor?: string;
+}
+
+export interface TicketPage {
+  readonly tickets: readonly Ticket[];
+  readonly nextCursor?: string;
+}
+
 export interface TicketRepository {
   save(ticket: Ticket): Promise<void>;
   list(): Promise<readonly Ticket[]>;
+  listPage(input: ListTicketsPageInput): Promise<TicketPage>;
   findById(id: string): Promise<Ticket | undefined>;
   resolve(id: string): Promise<Ticket | undefined>;
 }
@@ -35,6 +46,33 @@ export class InMemoryTicketRepository implements TicketRepository {
 
   async list(): Promise<readonly Ticket[]> {
     return Object.freeze([...this.#tickets.values()]);
+  }
+
+  async listPage(input: ListTicketsPageInput): Promise<TicketPage> {
+    if (!Number.isInteger(input.limit) || input.limit <= 0) {
+      throw new Error("limit must be a positive integer");
+    }
+
+    const tickets = [...this.#tickets.values()];
+    let startIndex = 0;
+    if (input.cursor !== undefined) {
+      const cursorIndex = tickets.findIndex(({ id }) => id === input.cursor);
+      if (cursorIndex === -1) {
+        throw new Error(`Cursor ticket with id "${input.cursor}" does not exist`);
+      }
+      startIndex = cursorIndex + 1;
+    }
+
+    const pageTickets = Object.freeze(
+      tickets.slice(startIndex, startIndex + input.limit),
+    );
+    const hasNextPage = startIndex + pageTickets.length < tickets.length;
+    return Object.freeze({
+      tickets: pageTickets,
+      ...(hasNextPage
+        ? { nextCursor: pageTickets[pageTickets.length - 1].id }
+        : {}),
+    });
   }
 
   async findById(id: string): Promise<Ticket | undefined> {

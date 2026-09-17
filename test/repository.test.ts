@@ -6,6 +6,7 @@ import {
   createAndSaveTicketWithPhotos,
   createTicket,
   resolveTicket,
+  type Ticket,
 } from "../src/index.ts";
 import { InMemoryPhotoStorage } from "../src/photo-storage.ts";
 import {
@@ -106,6 +107,49 @@ test("ticket repository saves snapshots and lists them in insertion order", asyn
   assert.deepEqual(await repository.list(), [first, second]);
   assert.deepEqual(await repository.findById("ticket-1"), first);
   assert.equal(await repository.findById("missing"), undefined);
+});
+
+test("ticket repository lists immutable deterministic pages", async () => {
+  const repository = new InMemoryTicketRepository();
+  const tickets = [
+    createTicket({ id: "ticket-1", title: "First", photoIds: [] }),
+    createTicket({ id: "ticket-2", title: "Second", photoIds: [] }),
+    createTicket({ id: "ticket-3", title: "Third", photoIds: [] }),
+  ];
+  for (const ticket of tickets) {
+    await repository.save(ticket);
+  }
+
+  const firstPage = await repository.listPage({ limit: 2 });
+  assert.deepEqual(firstPage, {
+    tickets: [tickets[0], tickets[1]],
+    nextCursor: "ticket-2",
+  });
+  assert.throws(
+    () => Object.assign(firstPage, { nextCursor: "ticket-1" }),
+    TypeError,
+  );
+  assert.throws(
+    () => (firstPage.tickets as Ticket[]).push(tickets[2]),
+    TypeError,
+  );
+
+  assert.deepEqual(
+    await repository.listPage({ limit: 2, cursor: firstPage.nextCursor }),
+    { tickets: [tickets[2]] },
+  );
+  await assert.rejects(
+    repository.listPage({ limit: 1, cursor: "ticket-missing" }),
+    /Cursor ticket with id "ticket-missing" does not exist/,
+  );
+  await assert.rejects(
+    repository.listPage({ limit: 0 }),
+    /limit must be a positive integer/,
+  );
+  await assert.rejects(
+    repository.listPage({ limit: 1.5 }),
+    /limit must be a positive integer/,
+  );
 });
 
 test("ticket repository rejects duplicate ids", async () => {
