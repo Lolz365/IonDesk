@@ -62,6 +62,18 @@ test("photo storage rejects an id with surrounding whitespace", async () => {
   assert.equal(await storage.findById(" photo-1 "), undefined);
 });
 
+test("photo storage rejects forged metadata without persisting it", async () => {
+  const storage = new InMemoryPhotoStorage();
+  const upload = {
+    id: "photo-unsafe",
+    contentType: "image/gif",
+    sizeBytes: 42,
+  } as unknown as PhotoUpload;
+
+  await assert.rejects(storage.save(upload), /unsupported contentType: image\/gif/);
+  assert.equal(await storage.findById("photo-unsafe"), undefined);
+});
+
 test("photo upload application validates and saves through storage", async () => {
   const storage = new InMemoryPhotoStorage();
 

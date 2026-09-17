@@ -1,4 +1,4 @@
-import type { PhotoUpload } from "./index.ts";
+import { validatePhotoUpload, type PhotoUpload } from "./index.ts";
 import { DuplicateRecordError } from "./repository.ts";
 
 export { DuplicateRecordError } from "./repository.ts";
@@ -18,11 +18,12 @@ export class InMemoryPhotoStorage implements PhotoStorage {
     if (upload.id !== upload.id.trim()) {
       throw new Error("id must not contain surrounding whitespace");
     }
-    if (this.#uploads.has(upload.id)) {
-      throw new DuplicateRecordError(upload.id);
+    const validatedUpload = validatePhotoUpload(upload);
+    if (this.#uploads.has(validatedUpload.id)) {
+      throw new DuplicateRecordError(validatedUpload.id);
     }
 
-    const snapshot = Object.freeze({ ...upload });
+    const snapshot = Object.freeze({ ...validatedUpload });
     this.#uploads.set(snapshot.id, snapshot);
   }
 
