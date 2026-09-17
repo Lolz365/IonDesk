@@ -1,0 +1,42 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import { createTicket } from "../src/index.ts";
+import {
+  DuplicateRecordError,
+  InMemoryTicketRepository,
+} from "../src/repository.ts";
+
+test("ticket repository saves snapshots and lists them in insertion order", async () => {
+  const repository = new InMemoryTicketRepository();
+  const first = createTicket({
+    id: "ticket-1",
+    title: "First",
+    photoIds: ["photo-1"],
+  });
+  const second = createTicket({
+    id: "ticket-2",
+    title: "Second",
+    photoIds: [],
+  });
+
+  await repository.save(first);
+  await repository.save(second);
+
+  assert.deepEqual(await repository.list(), [first, second]);
+  assert.deepEqual(await repository.findById("ticket-1"), first);
+  assert.equal(await repository.findById("missing"), undefined);
+});
+
+test("ticket repository rejects duplicate ids", async () => {
+  const repository = new InMemoryTicketRepository();
+  const ticket = createTicket({ id: "ticket-1", title: "First", photoIds: [] });
+
+  await repository.save(ticket);
+
+  await assert.rejects(
+    repository.save(ticket),
+    (error: unknown) =>
+      error instanceof DuplicateRecordError && error.id === "ticket-1",
+  );
+});
