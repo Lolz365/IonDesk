@@ -32,6 +32,9 @@ export class InMemoryTicketRepository implements TicketRepository {
   readonly #tickets = new Map<string, Ticket>();
 
   async save(ticket: Ticket): Promise<void> {
+    if (!ticket.id.trim()) {
+      throw new Error("id is required");
+    }
     if (this.#tickets.has(ticket.id)) {
       throw new DuplicateRecordError(ticket.id);
     }

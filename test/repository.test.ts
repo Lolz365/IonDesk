@@ -247,6 +247,19 @@ test("ticket repository rejects duplicate ids", async () => {
   );
 });
 
+test("ticket repository rejects a blank id without persisting the ticket", async () => {
+  const repository = new InMemoryTicketRepository();
+  const ticket: Ticket = {
+    id: "   ",
+    title: "Invalid persistence input",
+    status: "open",
+    photoIds: [],
+  };
+
+  await assert.rejects(repository.save(ticket), /id is required/);
+  assert.deepEqual(await repository.list(), []);
+});
+
 test("ticket repository resolves a previously saved open ticket immutably", async () => {
   const repository = new InMemoryTicketRepository();
   const openTicket = createTicket({
