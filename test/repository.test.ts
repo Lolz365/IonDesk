@@ -260,6 +260,22 @@ test("ticket repository rejects a blank id without persisting the ticket", async
   assert.deepEqual(await repository.list(), []);
 });
 
+test("ticket repository rejects an id with surrounding whitespace", async () => {
+  const repository = new InMemoryTicketRepository();
+  const ticket: Ticket = {
+    id: " ticket-1 ",
+    title: "Invalid persistence input",
+    status: "open",
+    photoIds: [],
+  };
+
+  await assert.rejects(
+    repository.save(ticket),
+    /id must not contain surrounding whitespace/,
+  );
+  assert.deepEqual(await repository.list(), []);
+});
+
 test("ticket repository resolves a previously saved open ticket immutably", async () => {
   const repository = new InMemoryTicketRepository();
   const openTicket = createTicket({

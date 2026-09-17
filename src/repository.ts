@@ -35,6 +35,9 @@ export class InMemoryTicketRepository implements TicketRepository {
     if (!ticket.id.trim()) {
       throw new Error("id is required");
     }
+    if (ticket.id !== ticket.id.trim()) {
+      throw new Error("id must not contain surrounding whitespace");
+    }
     if (this.#tickets.has(ticket.id)) {
       throw new DuplicateRecordError(ticket.id);
     }
