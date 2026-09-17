@@ -137,6 +137,21 @@ test("ticket application rejects an invalid page limit before querying the repos
   assert.equal(listPageCallCount, 0);
 });
 
+test("ticket application rejects a page limit above 100 before querying the repository", async () => {
+  const repository = new InMemoryTicketRepository();
+  let listPageCallCount = 0;
+  repository.listPage = async () => {
+    listPageCallCount += 1;
+    return { tickets: [] };
+  };
+
+  await assert.rejects(
+    listTicketsPage(repository, { limit: 101 }),
+    /limit must not exceed 100/,
+  );
+  assert.equal(listPageCallCount, 0);
+});
+
 test("ticket repository saves snapshots and lists them in insertion order", async () => {
   const repository = new InMemoryTicketRepository();
   const first = createTicket({
@@ -207,6 +222,15 @@ test("ticket repository rejects a blank pagination cursor", async () => {
   await assert.rejects(
     repository.listPage({ limit: 1, cursor: "   " }),
     /cursor is required/,
+  );
+});
+
+test("ticket repository rejects a page limit above 100", async () => {
+  const repository = new InMemoryTicketRepository();
+
+  await assert.rejects(
+    repository.listPage({ limit: 101 }),
+    /limit must not exceed 100/,
   );
 });
 

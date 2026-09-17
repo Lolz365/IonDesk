@@ -151,6 +151,9 @@ export async function listTicketsPage(
   if (!Number.isInteger(input.limit) || input.limit <= 0) {
     throw new Error("limit must be a positive integer");
   }
+  if (input.limit > 100) {
+    throw new Error("limit must not exceed 100");
+  }
   return repository.listPage({
     ...input,
     ...(input.cursor === undefined
