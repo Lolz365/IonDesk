@@ -47,6 +47,21 @@ test("photo storage rejects a blank id without persisting the upload", async () 
   assert.equal(await storage.findById("   "), undefined);
 });
 
+test("photo storage rejects an id with surrounding whitespace", async () => {
+  const storage = new InMemoryPhotoStorage();
+  const upload: PhotoUpload = {
+    id: " photo-1 ",
+    contentType: "image/jpeg",
+    sizeBytes: 42,
+  };
+
+  await assert.rejects(
+    storage.save(upload),
+    /id must not contain surrounding whitespace/,
+  );
+  assert.equal(await storage.findById(" photo-1 "), undefined);
+});
+
 test("photo upload application validates and saves through storage", async () => {
   const storage = new InMemoryPhotoStorage();
 

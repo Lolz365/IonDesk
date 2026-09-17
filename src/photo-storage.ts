@@ -15,6 +15,9 @@ export class InMemoryPhotoStorage implements PhotoStorage {
     if (!upload.id.trim()) {
       throw new Error("id is required");
     }
+    if (upload.id !== upload.id.trim()) {
+      throw new Error("id must not contain surrounding whitespace");
+    }
     if (this.#uploads.has(upload.id)) {
       throw new DuplicateRecordError(upload.id);
     }
