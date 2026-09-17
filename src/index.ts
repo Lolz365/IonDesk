@@ -52,7 +52,7 @@ function required(value: string, field: string): string {
 
 export function createTicket(input: CreateTicketInput): Ticket {
   const description = input.description?.trim();
-  input.photoIds.forEach((photoId, index) =>
+  const photoIds = input.photoIds.map((photoId, index) =>
     required(photoId, `photoIds[${index}]`),
   );
 
@@ -61,7 +61,7 @@ export function createTicket(input: CreateTicketInput): Ticket {
     title: required(input.title, "title"),
     ...(description ? { description } : {}),
     status: "open" as const,
-    photoIds: Object.freeze([...input.photoIds]),
+    photoIds: Object.freeze(photoIds),
   });
 }
 
