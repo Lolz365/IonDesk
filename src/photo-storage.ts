@@ -12,6 +12,9 @@ export class InMemoryPhotoStorage implements PhotoStorage {
   readonly #uploads = new Map<string, PhotoUpload>();
 
   async save(upload: PhotoUpload): Promise<void> {
+    if (!upload.id.trim()) {
+      throw new Error("id is required");
+    }
     if (this.#uploads.has(upload.id)) {
       throw new DuplicateRecordError(upload.id);
     }

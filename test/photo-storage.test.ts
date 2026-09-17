@@ -5,6 +5,7 @@ import {
   validateAndSavePhotoUpload,
   validatePhotoUpload,
 } from "../src/index.ts";
+import type { PhotoUpload } from "../src/index.ts";
 import {
   DuplicateRecordError,
   InMemoryPhotoStorage,
@@ -32,6 +33,18 @@ test("photo storage snapshots validated metadata and rejects duplicate ids", asy
     (error: unknown) =>
       error instanceof DuplicateRecordError && error.id === "photo-1",
   );
+});
+
+test("photo storage rejects a blank id without persisting the upload", async () => {
+  const storage = new InMemoryPhotoStorage();
+  const upload: PhotoUpload = {
+    id: "   ",
+    contentType: "image/jpeg",
+    sizeBytes: 42,
+  };
+
+  await assert.rejects(storage.save(upload), /id is required/);
+  assert.equal(await storage.findById("   "), undefined);
 });
 
 test("photo upload application validates and saves through storage", async () => {
