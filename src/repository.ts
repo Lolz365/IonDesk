@@ -46,6 +46,9 @@ export class InMemoryTicketRepository implements TicketRepository {
     if (!ticket) {
       return undefined;
     }
+    if (ticket.status === "resolved") {
+      throw new Error(`Ticket with id "${id}" is already resolved`);
+    }
 
     const snapshot = Object.freeze({ ...ticket, status: "resolved" as const });
     this.#tickets.set(id, snapshot);

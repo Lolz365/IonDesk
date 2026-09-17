@@ -55,6 +55,23 @@ test("ticket application resolves a saved ticket through a repository", async ()
   assert.deepEqual(resolvedTicket, { ...ticket, status: "resolved" });
 });
 
+test("ticket application rejects resolving an already-resolved ticket without mutation", async () => {
+  const repository = new InMemoryTicketRepository();
+  const ticket = createTicket({
+    id: "ticket-1",
+    title: "Leaking valve",
+    photoIds: ["photo-1"],
+  });
+  await repository.save(ticket);
+  const resolvedTicket = await resolveTicket(repository, "ticket-1");
+
+  await assert.rejects(
+    resolveTicket(repository, "ticket-1"),
+    /Ticket with id "ticket-1" is already resolved/,
+  );
+  assert.strictEqual(await repository.findById("ticket-1"), resolvedTicket);
+});
+
 test("ticket application rejects a blank ticket id when resolving", async () => {
   const repository = new InMemoryTicketRepository();
 
