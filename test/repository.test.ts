@@ -40,3 +40,25 @@ test("ticket repository rejects duplicate ids", async () => {
       error instanceof DuplicateRecordError && error.id === "ticket-1",
   );
 });
+
+test("ticket repository resolves a previously saved open ticket immutably", async () => {
+  const repository = new InMemoryTicketRepository();
+  const openTicket = createTicket({
+    id: "ticket-1",
+    title: "Leaking valve",
+    photoIds: ["photo-1"],
+  });
+
+  await repository.save(openTicket);
+
+  const resolvedTicket = await repository.resolve("ticket-1");
+
+  assert.deepEqual(resolvedTicket, { ...openTicket, status: "resolved" });
+  assert.deepEqual(await repository.findById("ticket-1"), resolvedTicket);
+  assert.equal(openTicket.status, "open");
+  assert.notEqual(resolvedTicket, openTicket);
+  assert.throws(
+    () => Object.assign(resolvedTicket, { status: "open" }),
+    TypeError,
+  );
+});

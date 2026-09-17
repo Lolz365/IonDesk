@@ -33,4 +33,15 @@ export class InMemoryTicketRepository {
   async findById(id: string): Promise<Ticket | undefined> {
     return this.#tickets.get(id);
   }
+
+  async resolve(id: string): Promise<Ticket | undefined> {
+    const ticket = this.#tickets.get(id);
+    if (!ticket) {
+      return undefined;
+    }
+
+    const snapshot = Object.freeze({ ...ticket, status: "resolved" as const });
+    this.#tickets.set(id, snapshot);
+    return snapshot;
+  }
 }
