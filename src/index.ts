@@ -215,9 +215,13 @@ export function analyzePhotoDraft(
 }
 
 export async function analyzeTicketPhoto(
+  repository: TicketRepository,
   provider: VisionProvider,
   input: VisionAnalysisInput,
 ): Promise<PhotoAnalysisDraft> {
+  if (!(await repository.findById(input.ticketId))) {
+    throw new Error(`Ticket with id "${input.ticketId}" does not exist`);
+  }
   const signals = await provider.analyzePhoto(input);
   return analyzePhotoDraft({ ...input, signals });
 }
