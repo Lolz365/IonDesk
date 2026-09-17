@@ -61,6 +61,7 @@ export interface PhotoUpload {
 
 const HIGH_CONFIDENCE = 0.8;
 const REVIEW_CONFIDENCE = 0.5;
+const MAX_PHOTO_SIZE_BYTES = 10 * 1024 * 1024;
 
 function required(value: string, field: string): string {
   const normalized = value.trim();
@@ -81,6 +82,9 @@ export function validatePhotoUpload(input: PhotoUploadInput): PhotoUpload {
   }
   if (!Number.isInteger(input.sizeBytes) || input.sizeBytes <= 0) {
     throw new Error("sizeBytes must be a positive integer");
+  }
+  if (input.sizeBytes > MAX_PHOTO_SIZE_BYTES) {
+    throw new Error("sizeBytes must not exceed 10 MiB");
   }
 
   return Object.freeze({

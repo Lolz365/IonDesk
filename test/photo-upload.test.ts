@@ -51,3 +51,15 @@ test("validates and normalizes an immutable photo upload", () => {
     );
   }
 });
+
+test("rejects photo uploads larger than 10 MiB", () => {
+  assert.throws(
+    () =>
+      validatePhotoUpload({
+        id: "photo-too-large",
+        contentType: "image/jpeg",
+        sizeBytes: 10 * 1024 * 1024 + 1,
+      }),
+    /sizeBytes must not exceed 10 MiB/,
+  );
+});
