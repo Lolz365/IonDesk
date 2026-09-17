@@ -225,6 +225,22 @@ test("ticket repository rejects a blank pagination cursor", async () => {
   );
 });
 
+test("ticket repository rejects resolving an id with surrounding whitespace without mutation", async () => {
+  const repository = new InMemoryTicketRepository();
+  const ticket = createTicket({
+    id: "ticket-1",
+    title: "Leaking valve",
+    photoIds: [],
+  });
+  await repository.save(ticket);
+
+  await assert.rejects(
+    repository.resolve(" ticket-1 "),
+    /id must not contain surrounding whitespace/,
+  );
+  assert.equal((await repository.findById("ticket-1"))?.status, "open");
+});
+
 test("ticket repository rejects a page limit above 100", async () => {
   const repository = new InMemoryTicketRepository();
 

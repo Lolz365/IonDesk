@@ -104,6 +104,10 @@ export class InMemoryTicketRepository implements TicketRepository {
   }
 
   async resolve(id: string): Promise<Ticket | undefined> {
+    if (id !== id.trim()) {
+      throw new Error("id must not contain surrounding whitespace");
+    }
+
     const ticket = this.#tickets.get(id);
     if (!ticket) {
       return undefined;
