@@ -52,6 +52,9 @@ function required(value: string, field: string): string {
 
 export function createTicket(input: CreateTicketInput): Ticket {
   const description = input.description?.trim();
+  input.photoIds.forEach((photoId, index) =>
+    required(photoId, `photoIds[${index}]`),
+  );
 
   return Object.freeze({
     id: required(input.id, "id"),

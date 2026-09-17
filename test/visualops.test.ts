@@ -32,6 +32,18 @@ test("rejects a ticket without a meaningful title", () => {
   );
 });
 
+test("rejects a ticket with a blank photo id", () => {
+  assert.throws(
+    () =>
+      createTicket({
+        id: "ticket-001",
+        title: "Leaking valve",
+        photoIds: ["photo-1", "   "],
+      }),
+    /photoIds\[1\] is required/,
+  );
+});
+
 test("produces a deterministic confidence-aware analysis draft", () => {
   const signals: PhotoSignal[] = [
     { label: "standing water", confidence: 0.91 },
