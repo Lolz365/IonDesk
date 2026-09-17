@@ -137,3 +137,18 @@ test("validates signal confidence and labels", () => {
     /label is required/,
   );
 });
+
+test("rejects duplicate normalized signal labels", () => {
+  assert.throws(
+    () =>
+      analyzePhotoDraft({
+        ticketId: "ticket-001",
+        photoId: "photo-1",
+        signals: [
+          { label: "leak", confidence: 0.9 },
+          { label: "  leak  ", confidence: 0.8 },
+        ],
+      }),
+    /signals\[1\] duplicates signals\[0\]/,
+  );
+});

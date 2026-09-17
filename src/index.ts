@@ -161,7 +161,8 @@ export async function resolveTicket(
 export function analyzePhotoDraft(
   input: PhotoAnalysisInput,
 ): PhotoAnalysisDraft {
-  const signals = input.signals.map((signal) => {
+  const signalLabelIndexes = new Map<string, number>();
+  const signals = input.signals.map((signal, index) => {
     const label = required(signal.label, "label");
     if (
       !Number.isFinite(signal.confidence) ||
@@ -170,6 +171,11 @@ export function analyzePhotoDraft(
     ) {
       throw new Error("confidence must be between 0 and 1");
     }
+    const duplicateIndex = signalLabelIndexes.get(label);
+    if (duplicateIndex !== undefined) {
+      throw new Error(`signals[${index}] duplicates signals[${duplicateIndex}]`);
+    }
+    signalLabelIndexes.set(label, index);
     return Object.freeze({ label, confidence: signal.confidence });
   });
 
