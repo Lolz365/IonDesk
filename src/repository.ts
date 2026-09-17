@@ -1,5 +1,12 @@
 import type { Ticket } from "./index.ts";
 
+export interface TicketRepository {
+  save(ticket: Ticket): Promise<void>;
+  list(): Promise<readonly Ticket[]>;
+  findById(id: string): Promise<Ticket | undefined>;
+  resolve(id: string): Promise<Ticket | undefined>;
+}
+
 export class DuplicateRecordError extends Error {
   readonly id: string;
 
@@ -10,7 +17,7 @@ export class DuplicateRecordError extends Error {
   }
 }
 
-export class InMemoryTicketRepository {
+export class InMemoryTicketRepository implements TicketRepository {
   readonly #tickets = new Map<string, Ticket>();
 
   async save(ticket: Ticket): Promise<void> {

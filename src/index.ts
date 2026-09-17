@@ -1,3 +1,5 @@
+import type { TicketRepository } from "./repository.ts";
+
 export type TicketStatus = "open" | "resolved";
 
 export interface Ticket {
@@ -58,6 +60,15 @@ export function createTicket(input: CreateTicketInput): Ticket {
     status: "open" as const,
     photoIds: Object.freeze([...input.photoIds]),
   });
+}
+
+export async function createAndSaveTicket(
+  repository: TicketRepository,
+  input: CreateTicketInput,
+): Promise<Ticket> {
+  const ticket = createTicket(input);
+  await repository.save(ticket);
+  return ticket;
 }
 
 export function analyzePhotoDraft(

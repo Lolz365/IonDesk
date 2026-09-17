@@ -1,11 +1,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createTicket } from "../src/index.ts";
+import { createAndSaveTicket, createTicket } from "../src/index.ts";
 import {
   DuplicateRecordError,
   InMemoryTicketRepository,
 } from "../src/repository.ts";
+
+test("ticket application creates and saves through a repository", async () => {
+  const repository = new InMemoryTicketRepository();
+
+  const ticket = await createAndSaveTicket(repository, {
+    id: "ticket-1",
+    title: "  Leaking valve  ",
+    photoIds: ["photo-1"],
+  });
+
+  assert.equal(ticket.title, "Leaking valve");
+  assert.deepEqual(await repository.findById("ticket-1"), ticket);
+});
 
 test("ticket repository saves snapshots and lists them in insertion order", async () => {
   const repository = new InMemoryTicketRepository();
