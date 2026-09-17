@@ -38,6 +38,9 @@ export class InMemoryTicketRepository implements TicketRepository {
     if (ticket.id !== ticket.id.trim()) {
       throw new Error("id must not contain surrounding whitespace");
     }
+    if (ticket.status !== "open" && ticket.status !== "resolved") {
+      throw new Error('status must be "open" or "resolved"');
+    }
     if (this.#tickets.has(ticket.id)) {
       throw new DuplicateRecordError(ticket.id);
     }
