@@ -1,4 +1,5 @@
 import type { TicketRepository } from "./repository.ts";
+import type { PhotoStorage } from "./photo-storage.ts";
 
 export type TicketStatus = "open" | "resolved";
 
@@ -122,6 +123,21 @@ export async function createAndSaveTicket(
   input: CreateTicketInput,
 ): Promise<Ticket> {
   const ticket = createTicket(input);
+  await repository.save(ticket);
+  return ticket;
+}
+
+export async function createAndSaveTicketWithPhotos(
+  repository: TicketRepository,
+  photoStorage: PhotoStorage,
+  input: CreateTicketInput,
+): Promise<Ticket> {
+  const ticket = createTicket(input);
+  for (const photoId of ticket.photoIds) {
+    if (!(await photoStorage.findById(photoId))) {
+      throw new Error(`Photo with id "${photoId}" does not exist`);
+    }
+  }
   await repository.save(ticket);
   return ticket;
 }

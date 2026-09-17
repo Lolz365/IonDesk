@@ -3,9 +3,11 @@ import test from "node:test";
 
 import {
   createAndSaveTicket,
+  createAndSaveTicketWithPhotos,
   createTicket,
   resolveTicket,
 } from "../src/index.ts";
+import { InMemoryPhotoStorage } from "../src/photo-storage.ts";
 import {
   DuplicateRecordError,
   InMemoryTicketRepository,
@@ -22,6 +24,21 @@ test("ticket application creates and saves through a repository", async () => {
 
   assert.equal(ticket.title, "Leaking valve");
   assert.deepEqual(await repository.findById("ticket-1"), ticket);
+});
+
+test("ticket application rejects a missing photo before saving", async () => {
+  const repository = new InMemoryTicketRepository();
+  const photoStorage = new InMemoryPhotoStorage();
+
+  await assert.rejects(
+    createAndSaveTicketWithPhotos(repository, photoStorage, {
+      id: "ticket-1",
+      title: "Leaking valve",
+      photoIds: ["photo-missing"],
+    }),
+    /Photo with id "photo-missing" does not exist/,
+  );
+  assert.equal(await repository.findById("ticket-1"), undefined);
 });
 
 test("ticket application resolves a saved ticket through a repository", async () => {
