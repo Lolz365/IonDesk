@@ -1,5 +1,9 @@
 import type { TicketRepository } from "./repository.ts";
 import type { PhotoStorage } from "./photo-storage.ts";
+import type {
+  VisionAnalysisInput,
+  VisionProvider,
+} from "./vision-provider.ts";
 
 export type TicketStatus = "open" | "resolved";
 
@@ -208,4 +212,12 @@ export function analyzePhotoDraft(
     confidence,
     summary: `${detected}${review}.`,
   });
+}
+
+export async function analyzeTicketPhoto(
+  provider: VisionProvider,
+  input: VisionAnalysisInput,
+): Promise<PhotoAnalysisDraft> {
+  const signals = await provider.analyzePhoto(input);
+  return analyzePhotoDraft({ ...input, signals });
 }
