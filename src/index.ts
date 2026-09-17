@@ -55,6 +55,14 @@ export function createTicket(input: CreateTicketInput): Ticket {
   const photoIds = input.photoIds.map((photoId, index) =>
     required(photoId, `photoIds[${index}]`),
   );
+  const photoIdIndexes = new Map<string, number>();
+  photoIds.forEach((photoId, index) => {
+    const duplicateIndex = photoIdIndexes.get(photoId);
+    if (duplicateIndex !== undefined) {
+      throw new Error(`photoIds[${index}] duplicates photoIds[${duplicateIndex}]`);
+    }
+    photoIdIndexes.set(photoId, index);
+  });
 
   return Object.freeze({
     id: required(input.id, "id"),

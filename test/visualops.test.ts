@@ -54,6 +54,18 @@ test("normalizes ticket photo ids", () => {
   assert.deepEqual(ticket.photoIds, ["photo-2", "photo-1"]);
 });
 
+test("rejects duplicate normalized ticket photo ids", () => {
+  assert.throws(
+    () =>
+      createTicket({
+        id: "ticket-001",
+        title: "Leaking valve",
+        photoIds: ["photo-1", "  photo-1 "],
+      }),
+    /photoIds\[1\] duplicates photoIds\[0\]/,
+  );
+});
+
 test("produces a deterministic confidence-aware analysis draft", () => {
   const signals: PhotoSignal[] = [
     { label: "standing water", confidence: 0.91 },
