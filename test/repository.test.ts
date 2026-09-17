@@ -61,6 +61,15 @@ test("ticket application rejects a blank ticket id when resolving", async () => 
   await assert.rejects(resolveTicket(repository, "  "), /id is required/);
 });
 
+test("ticket application rejects resolving a missing ticket", async () => {
+  const repository = new InMemoryTicketRepository();
+
+  await assert.rejects(
+    resolveTicket(repository, "ticket-missing"),
+    /Ticket with id "ticket-missing" does not exist/,
+  );
+});
+
 test("ticket repository saves snapshots and lists them in insertion order", async () => {
   const repository = new InMemoryTicketRepository();
   const first = createTicket({

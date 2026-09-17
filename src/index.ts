@@ -149,8 +149,13 @@ export async function createAndSaveTicketWithPhotos(
 export async function resolveTicket(
   repository: TicketRepository,
   id: string,
-): Promise<Ticket | undefined> {
-  return repository.resolve(required(id, "id"));
+): Promise<Ticket> {
+  const normalizedId = required(id, "id");
+  const ticket = await repository.resolve(normalizedId);
+  if (!ticket) {
+    throw new Error(`Ticket with id "${normalizedId}" does not exist`);
+  }
+  return ticket;
 }
 
 export function analyzePhotoDraft(
