@@ -84,6 +84,39 @@ test("vision analysis normalizes ids before lookup and provider calls", async ()
   assert.equal(draft.photoId, "photo-1");
 });
 
+test("vision analysis protects authorized ids from provider mutation", async () => {
+  const repository = new InMemoryTicketRepository();
+  await repository.save(
+    createTicket({
+      id: "ticket-001",
+      title: "Leaking valve",
+      photoIds: ["photo-1"],
+    }),
+  );
+  const provider: VisionProvider = {
+    async analyzePhoto(input) {
+      assert.equal(Object.isFrozen(input), true);
+      assert.throws(
+        () =>
+          Object.assign(input, {
+            ticketId: "ticket-other",
+            photoId: "photo-other",
+          }),
+        TypeError,
+      );
+      return [];
+    },
+  };
+
+  const draft = await analyzeTicketPhoto(repository, provider, {
+    ticketId: "ticket-001",
+    photoId: "photo-1",
+  });
+
+  assert.equal(draft.ticketId, "ticket-001");
+  assert.equal(draft.photoId, "photo-1");
+});
+
 test("fallback vision analysis returns a needs-review draft without inferred signals", async () => {
   const repository = new InMemoryTicketRepository();
   const provider: VisionProvider = new FallbackVisionProvider();

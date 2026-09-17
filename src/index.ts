@@ -219,10 +219,10 @@ export async function analyzeTicketPhoto(
   provider: VisionProvider,
   input: VisionAnalysisInput,
 ): Promise<PhotoAnalysisDraft> {
-  const normalizedInput = {
+  const normalizedInput = Object.freeze({
     ticketId: required(input.ticketId, "ticketId"),
     photoId: required(input.photoId, "photoId"),
-  };
+  });
   const ticket = await repository.findById(normalizedInput.ticketId);
   if (!ticket) {
     throw new Error(
