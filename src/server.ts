@@ -316,6 +316,24 @@ async function main(): Promise<void> {
         response.end(bytes);
         return;
       }
+      if (photoMatch && request.method !== "GET") {
+        let validPhotoId = true;
+        try {
+          safeId(photoMatch[1]);
+        } catch {
+          validPhotoId = false;
+        }
+        if (validPhotoId) {
+          response.setHeader("Allow", "GET");
+          sendJson(response, 405, {
+            error: {
+              code: "method_not_allowed",
+              message: `Method ${request.method} is not allowed for /api/photos/:id`,
+            },
+          });
+          return;
+        }
+      }
       const analysisMatch = pathname.match(/^\/api\/tickets\/([^/]+)\/photos\/([^/]+)\/analyze$/);
       if (request.method === "POST" && analysisMatch) {
         const body = await readJson(request);

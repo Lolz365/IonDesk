@@ -67,3 +67,26 @@ test("DELETE /api/photos reports POST for the known route", async () => {
     await rm(dataDir, { recursive: true, force: true });
   }
 });
+
+test("DELETE /api/photos/:id reports GET for the known individual route", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "visualops-photo-method-"));
+  let server: RunningServer | undefined;
+  try {
+    server = await startServer(dataDir);
+    const response = await fetch(`${server.baseUrl}/api/photos/missing`, {
+      method: "DELETE",
+    });
+
+    assert.equal(response.status, 405);
+    assert.equal(response.headers.get("allow"), "GET");
+    assert.deepEqual(await response.json(), {
+      error: {
+        code: "method_not_allowed",
+        message: "Method DELETE is not allowed for /api/photos/:id",
+      },
+    });
+  } finally {
+    if (server) await stopServer(server.process);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
