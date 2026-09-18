@@ -64,6 +64,38 @@ def phase3_settings(
 
 
 @pytest.mark.anyio
+async def test_duplicate_request_id_headers_are_rejected(
+    session_factory: async_sessionmaker[AsyncSession],
+    successful_probes: dict[str, Callable[[], Awaitable[None]]],
+) -> None:
+    app = create_app(
+        phase3_settings(),
+        probes=successful_probes,
+        session_factory=session_factory,
+        rate_limiter=DeterministicRateLimiter(),
+    )
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.get(
+            "/health/live",
+            headers=[
+                ("x-request-id", "a1f16b7a-3f75-4e5d-a5e1-4b4ca8f2506e"),
+                ("x-request-id", "b2b41858-9af9-49f7-b075-820d331f62a1"),
+            ],
+        )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "error": {
+            "code": "validation_error",
+            "message": "The request is invalid.",
+            "request_id": response.headers["x-request-id"],
+        }
+    }
+
+
+@pytest.mark.anyio
 async def test_health_and_openapi_are_public_but_business_routes_require_auth(
     session_factory: async_sessionmaker[AsyncSession],
     successful_probes: dict[str, Callable[[], Awaitable[None]]],

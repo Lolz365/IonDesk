@@ -117,7 +117,13 @@ def create_app(
 
     @app.middleware("http")
     async def request_context(request: Request, call_next: Callable[..., Any]) -> Any:
-        supplied = request.headers.get("x-request-id")
+        supplied_values = request.headers.getlist("x-request-id")
+        if len(supplied_values) > 1:
+            request.state.request_id = str(uuid.uuid4())
+            return error_response(
+                request, 422, "validation_error", "The request is invalid."
+            )
+        supplied = supplied_values[0] if supplied_values else None
         try:
             request_id = str(uuid.UUID(supplied)) if supplied else str(uuid.uuid4())
         except ValueError:
