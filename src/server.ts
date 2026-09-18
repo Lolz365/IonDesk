@@ -262,6 +262,9 @@ async function main(): Promise<void> {
       }
       if (request.method === "POST" && pathname === "/api/tickets") {
         const body = await readJson(request);
+        if ("title" in body && typeof body.title !== "string") {
+          throw new Error("title must be a string");
+        }
         if ("description" in body && typeof body.description !== "string") {
           throw new Error("description must be a string");
         }
