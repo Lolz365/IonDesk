@@ -34,7 +34,7 @@ class OrganizationResponse(BaseModel):
 
 
 class OrganizationUpdate(BaseModel):
-    name: str = Field(min_length=1, max_length=200)
+    name: str = Field(min_length=1, max_length=200, pattern=r"\S")
 
 
 @router.get("/{organization_id}", response_model=OrganizationResponse)

@@ -181,3 +181,34 @@ async def test_mutation_rejects_whitespace_only_idempotency_key_before_writes(
     assert audit_count == 0
     assert outbox_count == 0
     assert idempotency_count == 0
+
+
+@pytest.mark.anyio
+async def test_mutation_rejects_whitespace_only_name_before_writes(
+    api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    organization, context = await seed_owner(session_factory)
+    client, set_context = api_client
+    set_context(context)
+
+    response = await client.patch(
+        "/api/v1/organizations/current",
+        headers={"idempotency-key": "whitespace-name-1"},
+        json={"name": "   "},
+    )
+
+    assert response.status_code == 422
+    async with session_factory() as session:
+        persisted = await session.get(Organization, organization.id)
+        audit_count = await session.scalar(select(func.count()).select_from(AuditEvent))
+        outbox_count = await session.scalar(
+            select(func.count()).select_from(OutboxEvent)
+        )
+        idempotency_count = await session.scalar(
+            select(func.count()).select_from(IdempotencyRecord)
+        )
+    assert persisted is not None and persisted.name == "Before"
+    assert audit_count == 0
+    assert outbox_count == 0
+    assert idempotency_count == 0
