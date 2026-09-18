@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
+from datetime import UTC, datetime
 
 import pytest
 from httpx import AsyncClient
@@ -120,6 +121,73 @@ async def test_owner_lists_only_tickets_from_their_organization(
 
     assert response.status_code == 200
     assert [ticket["title"] for ticket in response.json()] == ["Visible ticket"]
+
+
+@pytest.mark.anyio
+async def test_owner_lists_tickets_newest_first_with_id_tie_breaker(
+    api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session, session.begin():
+        organization = Organization(identifier="ordered-org", name="Ordered Org")
+        owner = User(
+            oidc_subject="ordering-owner",
+            email="ordering-owner@example.test",
+            display_name="Ordering Owner",
+        )
+        session.add_all([organization, owner])
+        await session.flush()
+        membership = Membership(
+            organization_id=organization.id,
+            user_id=owner.id,
+            role=Role.OWNER,
+        )
+        newer_created_at = datetime(2026, 1, 2, tzinfo=UTC)
+        session.add_all(
+            [
+                membership,
+                Ticket(
+                    id=uuid.UUID(int=3),
+                    organization_id=organization.id,
+                    created_by_user_id=owner.id,
+                    title="Older ticket",
+                    created_at=datetime(2026, 1, 1, tzinfo=UTC),
+                ),
+                Ticket(
+                    id=uuid.UUID(int=1),
+                    organization_id=organization.id,
+                    created_by_user_id=owner.id,
+                    title="Newer lower-id ticket",
+                    created_at=newer_created_at,
+                ),
+                Ticket(
+                    id=uuid.UUID(int=2),
+                    organization_id=organization.id,
+                    created_by_user_id=owner.id,
+                    title="Newer higher-id ticket",
+                    created_at=newer_created_at,
+                ),
+            ]
+        )
+        await session.flush()
+        owner_context = TenantContext(
+            organization_id=organization.id,
+            user_id=owner.id,
+            membership_id=membership.id,
+            role=Role.OWNER,
+            capabilities=capabilities_for_role(Role.OWNER),
+        )
+
+    client, set_context = api_client
+    set_context(owner_context)
+    response = await client.get("/api/v1/tickets")
+
+    assert response.status_code == 200
+    assert [ticket["title"] for ticket in response.json()] == [
+        "Newer higher-id ticket",
+        "Newer lower-id ticket",
+        "Older ticket",
+    ]
 
 
 @pytest.mark.anyio

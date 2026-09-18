@@ -52,6 +52,8 @@ async def list_tickets(
     context: TenantContext,
 ) -> list[Ticket]:
     tickets = await session.scalars(
-        select(Ticket).where(Ticket.organization_id == context.organization_id)
+        select(Ticket)
+        .where(Ticket.organization_id == context.organization_id)
+        .order_by(Ticket.created_at.desc(), Ticket.id.desc())
     )
     return list(tickets)
