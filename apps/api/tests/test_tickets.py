@@ -848,6 +848,81 @@ async def test_ticket_status_transition_replays_idempotent_request_once(
 
 
 @pytest.mark.anyio
+async def test_ticket_status_transition_rejects_reused_key_for_different_payload(
+    api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session, session.begin():
+        organization = Organization(
+            identifier="status-key-conflict-org",
+            name="Status Key Conflict Org",
+        )
+        owner = User(
+            oidc_subject="status-key-conflict-owner",
+            email="status-key-conflict-owner@example.test",
+            display_name="Status Key Conflict Owner",
+        )
+        session.add_all([organization, owner])
+        await session.flush()
+        membership = Membership(
+            organization_id=organization.id,
+            user_id=owner.id,
+            role=Role.OWNER,
+        )
+        ticket = Ticket(
+            organization_id=organization.id,
+            created_by_user_id=owner.id,
+            title="Reject reused transition key",
+        )
+        session.add_all([membership, ticket])
+        await session.flush()
+        context = TenantContext(
+            organization_id=organization.id,
+            user_id=owner.id,
+            membership_id=membership.id,
+            role=Role.OWNER,
+            capabilities=capabilities_for_role(Role.OWNER),
+        )
+        ticket_id = ticket.id
+
+    client, set_context = api_client
+    set_context(context)
+    headers = {"Idempotency-Key": "status-transition-conflict-1"}
+    first = await client.patch(
+        f"/api/v1/tickets/{ticket_id}/status",
+        headers=headers,
+        json={"status": "assigned"},
+    )
+    conflict = await client.patch(
+        f"/api/v1/tickets/{ticket_id}/status",
+        headers=headers,
+        json={"status": "in_progress"},
+    )
+
+    assert first.status_code == 200
+    assert conflict.status_code == 409
+    assert conflict.json()["error"]["code"] == "transaction_conflict"
+
+    async with session_factory() as session:
+        saved_ticket = await session.get(Ticket, ticket_id)
+        audit_count = await session.scalar(
+            select(func.count()).select_from(AuditEvent)
+        )
+        outbox_count = await session.scalar(
+            select(func.count()).select_from(OutboxEvent)
+        )
+        idempotency_count = await session.scalar(
+            select(func.count()).select_from(IdempotencyRecord)
+        )
+
+    assert saved_ticket is not None
+    assert saved_ticket.status == "assigned"
+    assert audit_count == 1
+    assert outbox_count == 1
+    assert idempotency_count == 1
+
+
+@pytest.mark.anyio
 async def test_technician_starts_assigned_ticket(
     api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
     session_factory: async_sessionmaker[AsyncSession],
