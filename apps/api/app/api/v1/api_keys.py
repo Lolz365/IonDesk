@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
-from app.services.api_keys import create_api_key, revoke_api_key
+from app.services.api_keys import create_api_key, list_api_keys, revoke_api_key
 from app.services.authorization import (
     AuthorizationDenied,
     Capability,
@@ -65,6 +65,17 @@ class APIKeyCreated(BaseModel):
     expires_at: datetime | None
 
 
+class APIKeyResponse(BaseModel):
+    id: uuid.UUID
+    name: str
+    prefix: str
+    scopes: list[Capability]
+    expires_at: datetime | None
+    revoked_at: datetime | None
+    last_used_at: datetime | None
+    created_at: datetime
+
+
 class APIKeyRevokedResponse(BaseModel):
     id: uuid.UUID
     revoked: bool
@@ -102,6 +113,28 @@ async def issue_api_key(
         scopes=sorted(issued.scopes, key=lambda item: item.value),
         expires_at=issued.expires_at,
     )
+
+
+@router.get("", response_model=list[APIKeyResponse])
+async def get_api_keys(
+    session: SessionDependency,
+    context: TenantDependency,
+) -> list[APIKeyResponse]:
+    require_capability(context, Capability.API_KEY_MANAGE)
+    models = await list_api_keys(session, context=context)
+    return [
+        APIKeyResponse(
+            id=model.id,
+            name=model.name,
+            prefix=model.key_prefix,
+            scopes=model.scopes,
+            expires_at=model.expires_at,
+            revoked_at=model.revoked_at,
+            last_used_at=model.last_used_at,
+            created_at=model.created_at,
+        )
+        for model in models
+    ]
 
 
 @router.post("/{api_key_id}/revoke", response_model=APIKeyRevokedResponse)

@@ -139,6 +139,18 @@ async def create_api_key(
     )
 
 
+async def list_api_keys(
+    session: AsyncSession, *, context: TenantContext
+) -> list[APIKey]:
+    return list(
+        await session.scalars(
+            select(APIKey)
+            .where(APIKey.organization_id == context.organization_id)
+            .order_by(APIKey.created_at, APIKey.id)
+        )
+    )
+
+
 async def authenticate_api_key(
     session: AsyncSession, token: str, *, now: datetime | None = None
 ) -> TenantContext:
