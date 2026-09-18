@@ -289,6 +289,39 @@ async def test_api_key_creation_rejects_whitespace_name_without_persistence(
 
 
 @pytest.mark.anyio
+async def test_api_key_revocation_response_disables_caching(
+    session_factory: async_sessionmaker[AsyncSession],
+    successful_probes: dict[str, Callable[[], Awaitable[None]]],
+) -> None:
+    organization = await seeded_org(session_factory)
+    app = create_app(
+        phase3_settings(),
+        probes=successful_probes,
+        session_factory=session_factory,
+        oidc_validator=AcceptOneToken(),
+        rate_limiter=DeterministicRateLimiter(),
+    )
+    headers = {
+        "authorization": "Bearer signed-and-verified",
+        "x-organization-id": str(organization.id),
+    }
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        issued = await client.post(
+            "/api/v1/api-keys",
+            headers=headers,
+            json={"name": "CMMS", "scopes": [Capability.ORGANIZATION_READ]},
+        )
+        response = await client.post(
+            f"/api/v1/api-keys/{issued.json()['id']}/revoke", headers=headers
+        )
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+
+
+@pytest.mark.anyio
 async def test_unexpected_authentication_failure_returns_safe_error_envelope(
     session_factory: async_sessionmaker[AsyncSession],
     successful_probes: dict[str, Callable[[], Awaitable[None]]],

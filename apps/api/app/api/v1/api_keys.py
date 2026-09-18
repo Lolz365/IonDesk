@@ -108,6 +108,7 @@ async def issue_api_key(
 async def revoke_current_api_key(
     api_key_id: uuid.UUID,
     request: Request,
+    response: Response,
     session: SessionDependency,
     context: TenantDependency,
 ) -> APIKeyRevokedResponse:
@@ -121,4 +122,5 @@ async def revoke_current_api_key(
         user_agent=request.headers.get("user-agent"),
     )
     await session.commit()
+    response.headers["Cache-Control"] = "no-store"
     return APIKeyRevokedResponse(id=model.id, revoked=True)
