@@ -184,6 +184,12 @@ def create_app(
             request, error.status_code, "http_error", "Request failed."
         )
 
+    @app.exception_handler(Exception)
+    async def internal_error(request: Request, _: Exception) -> JSONResponse:
+        return error_response(
+            request, 500, "internal_error", "An unexpected error occurred."
+        )
+
     @app.get("/health/live", tags=["health"])
     async def live() -> dict[str, str]:
         return {"status": "ok"}

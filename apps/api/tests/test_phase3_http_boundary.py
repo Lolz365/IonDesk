@@ -188,6 +188,45 @@ async def test_api_key_creation_response_disables_caching(
 
 
 @pytest.mark.anyio
+async def test_unexpected_authentication_failure_returns_safe_error_envelope(
+    session_factory: async_sessionmaker[AsyncSession],
+    successful_probes: dict[str, Callable[[], Awaitable[None]]],
+) -> None:
+    class BrokenTokenValidator:
+        async def validate(self, token: str) -> str:
+            raise RuntimeError("credential=must-not-leak")
+
+    app = create_app(
+        phase3_settings(),
+        probes=successful_probes,
+        session_factory=session_factory,
+        oidc_validator=BrokenTokenValidator(),
+        rate_limiter=DeterministicRateLimiter(),
+    )
+    async with AsyncClient(
+        transport=ASGITransport(app=app, raise_app_exceptions=False),
+        base_url="http://test",
+    ) as client:
+        response = await client.get(
+            "/api/v1/organizations/00000000-0000-0000-0000-000000000000",
+            headers={
+                "authorization": "Bearer signed-and-verified",
+                "x-organization-id": "00000000-0000-0000-0000-000000000000",
+            },
+        )
+
+    assert response.status_code == 500
+    assert response.json() == {
+        "error": {
+            "code": "internal_error",
+            "message": "An unexpected error occurred.",
+            "request_id": response.headers["x-request-id"],
+        }
+    }
+    assert "credential" not in response.text
+
+
+@pytest.mark.anyio
 async def test_rate_limits_have_request_id_envelopes_and_separate_bounds(
     session_factory: async_sessionmaker[AsyncSession],
     successful_probes: dict[str, Callable[[], Awaitable[None]]],
