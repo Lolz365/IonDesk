@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Header, Request, status
+from fastapi import APIRouter, Depends, Header, Query, Request, status
 from pydantic import BaseModel, ConfigDict, StringConstraints
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -50,9 +50,10 @@ class TicketResponse(BaseModel):
 async def list_tenant_tickets(
     session: SessionDependency,
     context: TenantDependency,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
 ) -> list[TicketResponse]:
     require_capability(context, Capability.WORK_ORDER_READ)
-    tickets = await list_tickets(session, context=context)
+    tickets = await list_tickets(session, context=context, limit=limit)
     return [TicketResponse.model_validate(ticket) for ticket in tickets]
 
 

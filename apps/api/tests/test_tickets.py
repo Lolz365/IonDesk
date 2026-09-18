@@ -200,6 +200,61 @@ async def test_owner_lists_tickets_newest_first_with_id_tie_breaker(
 
 
 @pytest.mark.anyio
+async def test_owner_limits_ticket_list_to_newest_tenant_ticket(
+    api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session, session.begin():
+        organization = Organization(identifier="limited-org", name="Limited Org")
+        owner = User(
+            oidc_subject="limited-owner",
+            email="limited-owner@example.test",
+            display_name="Limited Owner",
+        )
+        session.add_all([organization, owner])
+        await session.flush()
+        membership = Membership(
+            organization_id=organization.id,
+            user_id=owner.id,
+            role=Role.OWNER,
+        )
+        session.add_all(
+            [
+                membership,
+                Ticket(
+                    organization_id=organization.id,
+                    created_by_user_id=owner.id,
+                    title="Older limited ticket",
+                    created_at=datetime(2026, 1, 1, tzinfo=UTC),
+                ),
+                Ticket(
+                    organization_id=organization.id,
+                    created_by_user_id=owner.id,
+                    title="Newest limited ticket",
+                    created_at=datetime(2026, 1, 2, tzinfo=UTC),
+                ),
+            ]
+        )
+        await session.flush()
+        owner_context = TenantContext(
+            organization_id=organization.id,
+            user_id=owner.id,
+            membership_id=membership.id,
+            role=Role.OWNER,
+            capabilities=capabilities_for_role(Role.OWNER),
+        )
+
+    client, set_context = api_client
+    set_context(owner_context)
+    response = await client.get("/api/v1/tickets?limit=1")
+
+    assert response.status_code == 200
+    assert [ticket["title"] for ticket in response.json()] == [
+        "Newest limited ticket"
+    ]
+
+
+@pytest.mark.anyio
 async def test_owner_creates_tenant_scoped_ticket_with_non_empty_title(
     api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
     session_factory: async_sessionmaker[AsyncSession],

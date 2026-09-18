@@ -180,11 +180,13 @@ async def list_tickets(
     session: AsyncSession,
     *,
     context: TenantContext,
+    limit: int,
 ) -> list[Ticket]:
     tickets = await session.scalars(
         select(Ticket)
         .where(Ticket.organization_id == context.organization_id)
         .order_by(Ticket.created_at.desc(), Ticket.id.desc())
+        .limit(limit)
     )
     return list(tickets)
 
