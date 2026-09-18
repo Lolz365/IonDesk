@@ -1,0 +1,15 @@
+services:
+  visualops:
+    build: .
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3081
+      DATA_DIR: /data
+    ports:
+      - "127.0.0.1:3081:3081"
+    volumes:
+      - "visualops-data:/data"
+    restart: unless-stopped
+
+volumes:
+  visualops-data:

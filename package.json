@@ -4,9 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "start": "node src/server.ts",
     "test": "node --test test/*.test.ts"
   },
   "engines": {
-    "node": ">=22.18"
+    "node": ">=22"
   }
 }
