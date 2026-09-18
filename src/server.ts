@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { analyzeTicketPhoto, createAndSaveTicketWithPhotos, resolveTicket, validateAndSavePhotoUpload, type PhotoSignal } from "./index.ts";
+import { analyzeTicketPhoto, createAndSaveTicketWithPhotos, listTicketsPage, resolveTicket, validateAndSavePhotoUpload, type PhotoSignal } from "./index.ts";
 import { FilePhotoStorage, FileTicketRepository, validateResourceId } from "./file-storage.ts";
 
 const MAX_PHOTO_SIZE_BYTES = 10 * 1024 * 1024;
@@ -197,7 +197,8 @@ async function main(): Promise<void> {
   const photoStorage = await FilePhotoStorage.open(dataDir);
 
   const server = createServer(async (request, response) => {
-    const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
+    const url = new URL(request.url ?? "/", "http://localhost");
+    const pathname = url.pathname;
     try {
       if (request.method === "GET" && pathname === "/health") {
         sendJson(response, 200, { status: "ok" });
@@ -219,6 +220,15 @@ async function main(): Promise<void> {
         return;
       }
       if (request.method === "GET" && pathname === "/api/tickets") {
+        if (url.searchParams.has("limit")) {
+          const limit = Number(url.searchParams.get("limit"));
+          const cursor = url.searchParams.get("cursor");
+          sendJson(response, 200, await listTicketsPage(repository, {
+            limit,
+            ...(cursor === null ? {} : { cursor }),
+          }));
+          return;
+        }
         sendJson(response, 200, { tickets: await repository.list() });
         return;
       }
