@@ -72,7 +72,10 @@ const HIGH_CONFIDENCE = 0.8;
 const REVIEW_CONFIDENCE = 0.5;
 const MAX_PHOTO_SIZE_BYTES = 10 * 1024 * 1024;
 
-function required(value: string, field: string): string {
+function required(value: unknown, field: string): string {
+  if (typeof value !== "string") {
+    throw new Error(`${field} must be a string`);
+  }
   const normalized = value.trim();
   if (!normalized) {
     throw new Error(`${field} is required`);
