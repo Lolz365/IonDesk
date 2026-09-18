@@ -142,7 +142,11 @@ function sendJson(response: ServerResponse, status: number, value: unknown): voi
 }
 
 async function readJson(request: IncomingMessage): Promise<Record<string, unknown>> {
-  if (!(request.headers["content-type"] ?? "").toLowerCase().startsWith("application/json")) {
+  const contentType = (request.headers["content-type"] ?? "")
+    .split(";", 1)[0]
+    .trim()
+    .toLowerCase();
+  if (contentType !== "application/json") {
     throw new Error("content-type must be application/json");
   }
   const chunks: Buffer[] = [];
