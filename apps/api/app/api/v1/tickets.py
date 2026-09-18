@@ -4,6 +4,7 @@ import uuid
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Header, Query, Request, status
+from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, ConfigDict, StringConstraints
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -48,6 +49,7 @@ class TicketResponse(BaseModel):
 
 @router.get("", response_model=list[TicketResponse])
 async def list_tenant_tickets(
+    request: Request,
     session: SessionDependency,
     context: TenantDependency,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
@@ -56,6 +58,18 @@ async def list_tenant_tickets(
         Query(alias="status"),
     ] = None,
 ) -> list[TicketResponse]:
+    limit_values = request.query_params.getlist("limit")
+    if len(limit_values) > 1:
+        raise RequestValidationError(
+            [
+                {
+                    "type": "value_error",
+                    "loc": ("query", "limit"),
+                    "msg": "Value error, limit must be provided once",
+                    "input": limit_values,
+                }
+            ]
+        )
     require_capability(context, Capability.WORK_ORDER_READ)
     tickets = await list_tickets(
         session, context=context, limit=limit, status=ticket_status
