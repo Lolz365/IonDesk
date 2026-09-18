@@ -117,11 +117,13 @@ async def issue_api_key(
 
 @router.get("", response_model=list[APIKeyResponse])
 async def get_api_keys(
+    response: Response,
     session: SessionDependency,
     context: TenantDependency,
 ) -> list[APIKeyResponse]:
     require_capability(context, Capability.API_KEY_MANAGE)
     models = await list_api_keys(session, context=context)
+    response.headers["Cache-Control"] = "no-store"
     return [
         APIKeyResponse(
             id=model.id,
