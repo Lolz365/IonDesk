@@ -220,6 +220,9 @@ async function main(): Promise<void> {
         return;
       }
       if (request.method === "GET" && pathname === "/api/tickets") {
+        if (url.searchParams.has("cursor") && !url.searchParams.has("limit")) {
+          throw new HttpError(400, "validation_error", "cursor requires an explicit limit");
+        }
         if (url.searchParams.has("limit")) {
           const limit = Number(url.searchParams.get("limit"));
           const cursor = url.searchParams.get("cursor");
