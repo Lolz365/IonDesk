@@ -243,6 +243,16 @@ async function main(): Promise<void> {
         send(response, 200, "text/html; charset=utf-8", UI);
         return;
       }
+      if (pathname === "/") {
+        response.setHeader("Allow", "GET");
+        sendJson(response, 405, {
+          error: {
+            code: "method_not_allowed",
+            message: `Method ${request.method} is not allowed for /`,
+          },
+        });
+        return;
+      }
       if (request.method === "POST" && pathname === "/api/tickets") {
         const body = await readJson(request);
         if ("photoIds" in body && !Array.isArray(body.photoIds)) throw new Error("photoIds must be an array");
