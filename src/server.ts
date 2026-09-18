@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { analyzeTicketPhoto, createAndSaveTicketWithPhotos, listTicketsPage, resolveTicket, validateAndSavePhotoUpload, type PhotoSignal } from "./index.ts";
+import { analyzeTicketPhoto, createAndSaveTicketWithPhotos, listTicketsPage, resolveTicket, validateAndSavePhotoUpload, validateTicketCreateFields, type PhotoSignal } from "./index.ts";
 import { FilePhotoStorage, FileTicketRepository, validateResourceId } from "./file-storage.ts";
 
 const MAX_PHOTO_SIZE_BYTES = 10 * 1024 * 1024;
@@ -265,6 +265,7 @@ async function main(): Promise<void> {
       }
       if (request.method === "POST" && pathname === "/api/tickets") {
         const body = await readJson(request);
+        validateTicketCreateFields(body);
         if ("title" in body && typeof body.title !== "string") {
           throw new Error("title must be a string");
         }

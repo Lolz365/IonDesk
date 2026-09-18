@@ -115,6 +115,15 @@ export async function validateAndSavePhotoUpload(
   return upload;
 }
 
+export function validateTicketCreateFields(body: Record<string, unknown>): void {
+  const supportedFields = new Set(["title", "description", "photoIds"]);
+  for (const field of Object.keys(body)) {
+    if (!supportedFields.has(field)) {
+      throw new Error(`Unsupported ticket field: ${field}`);
+    }
+  }
+}
+
 export function createTicket(input: CreateTicketInput): Ticket {
   const description = input.description?.trim();
   const photoIds = input.photoIds.map((photoId, index) =>

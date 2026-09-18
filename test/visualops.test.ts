@@ -5,6 +5,7 @@ import {
   analyzePhotoDraft,
   createTicket,
   type PhotoSignal,
+  validateTicketCreateFields,
 } from "../src/index.ts";
 
 test("creates a ticket with normalized text and immutable photo ids", () => {
@@ -29,6 +30,13 @@ test("rejects a ticket without a meaningful title", () => {
   assert.throws(
     () => createTicket({ id: "ticket-001", title: "   ", photoIds: [] }),
     /title is required/,
+  );
+});
+
+test("rejects unsupported ticket creation fields", () => {
+  assert.throws(
+    () => validateTicketCreateFields({ title: "Inspect pipe", status: "resolved" }),
+    /Unsupported ticket field: status/,
   );
 });
 

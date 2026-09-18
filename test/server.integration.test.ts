@@ -367,6 +367,33 @@ test("rejects a non-string title when creating a ticket", async () => {
   }
 });
 
+test("rejects unsupported fields when creating a ticket without persisting it", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
+  let server: RunningServer | undefined;
+  try {
+    server = await startServer(dataDir);
+    const response = await fetch(`${server.baseUrl}/api/tickets`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title: "Inspect pipe", status: "resolved" }),
+    });
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), {
+      error: {
+        code: "validation_error",
+        message: "Unsupported ticket field: status",
+      },
+    });
+
+    const listResponse = await fetch(`${server.baseUrl}/api/tickets`);
+    assert.deepEqual(await listResponse.json(), { tickets: [] });
+  } finally {
+    if (server) await stopServer(server.process);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("rejects a non-application/json Content-Type when creating a ticket", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
   let server: RunningServer | undefined;
