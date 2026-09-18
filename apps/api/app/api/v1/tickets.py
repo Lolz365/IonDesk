@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from pydantic import BaseModel, ConfigDict, StringConstraints
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -83,6 +83,7 @@ async def create_tenant_ticket(
 async def update_tenant_ticket_status(
     ticket_id: uuid.UUID,
     body: TicketStatusUpdate,
+    request: Request,
     session: SessionDependency,
     context: TenantDependency,
 ) -> TicketResponse:
@@ -97,6 +98,9 @@ async def update_tenant_ticket_status(
         context=context,
         ticket_id=ticket_id,
         status=body.status,
+        correlation_id=uuid.UUID(request.state.request_id),
+        source_ip=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
     )
     await session.commit()
     return TicketResponse.model_validate(ticket)

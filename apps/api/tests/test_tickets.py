@@ -9,7 +9,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models import Membership, Organization, Ticket, User
+from app.models import AuditEvent, Membership, Organization, OutboxEvent, Ticket, User
 from app.services.authorization import Role, TenantContext, capabilities_for_role
 
 
@@ -289,8 +289,11 @@ async def test_dispatcher_assigns_new_ticket(
 
     client, set_context = api_client
     set_context(context)
+    request_id = uuid.uuid4()
     response = await client.patch(
-        f"/api/v1/tickets/{ticket_id}/status", json={"status": "assigned"}
+        f"/api/v1/tickets/{ticket_id}/status",
+        headers={"x-request-id": str(request_id)},
+        json={"status": "assigned"},
     )
 
     assert response.status_code == 200
@@ -298,9 +301,33 @@ async def test_dispatcher_assigns_new_ticket(
 
     async with session_factory() as session:
         saved_ticket = await session.get(Ticket, ticket_id)
+        audit_event = await session.scalar(select(AuditEvent))
+        outbox_event = await session.scalar(select(OutboxEvent))
 
     assert saved_ticket is not None
     assert saved_ticket.status == "assigned"
+    assert audit_event is not None
+    assert audit_event.organization_id == organization.id
+    assert audit_event.actor_user_id == dispatcher.id
+    assert audit_event.object_type == "ticket"
+    assert audit_event.object_id == ticket_id
+    assert audit_event.action == "ticket.status_changed"
+    assert audit_event.before == {"status": "new"}
+    assert audit_event.after == {"status": "assigned"}
+    assert audit_event.correlation_id == request_id
+    assert outbox_event is not None
+    assert outbox_event.organization_id == organization.id
+    assert outbox_event.aggregate_type == "ticket"
+    assert outbox_event.aggregate_id == ticket_id
+    assert outbox_event.event_type == "ticket.status_changed"
+    assert outbox_event.payload == {
+        "ticket_id": str(ticket_id),
+        "before": {"status": "new"},
+        "after": {"status": "assigned"},
+    }
+    assert outbox_event.idempotency_key == (
+        f"ticket.status_changed:{ticket_id}:new:assigned:{request_id}"
+    )
 
 
 @pytest.mark.anyio
