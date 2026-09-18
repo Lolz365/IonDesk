@@ -326,6 +326,24 @@ async function main(): Promise<void> {
         sendJson(response, 200, ticket);
         return;
       }
+      if (ticketMatch && request.method !== "GET") {
+        let validTicketId = true;
+        try {
+          safeId(ticketMatch[1]);
+        } catch {
+          validTicketId = false;
+        }
+        if (validTicketId) {
+          response.setHeader("Allow", "GET");
+          sendJson(response, 405, {
+            error: {
+              code: "method_not_allowed",
+              message: `Method ${request.method} is not allowed for /api/tickets/:id`,
+            },
+          });
+          return;
+        }
+      }
       sendJson(response, 404, { error: { code: "not_found", message: "Route not found" } });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Invalid request";

@@ -167,6 +167,27 @@ test("creates, lists, gets, and resolves tickets with JSON errors", async () => 
   }
 });
 
+test("returns method not allowed for PUT on an individual ticket route", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
+  let server: RunningServer | undefined;
+  try {
+    server = await startServer(dataDir);
+    const response = await fetch(`${server.baseUrl}/api/tickets/missing`, { method: "PUT" });
+
+    assert.equal(response.status, 405);
+    assert.equal(response.headers.get("allow"), "GET");
+    assert.deepEqual(await response.json(), {
+      error: {
+        code: "method_not_allowed",
+        message: "Method PUT is not allowed for /api/tickets/:id",
+      },
+    });
+  } finally {
+    if (server) await stopServer(server.process);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("rejects a non-array photoIds field when creating a ticket", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
   let server: RunningServer | undefined;
@@ -204,6 +225,33 @@ test("rejects non-string photo IDs when creating a ticket", async () => {
       error: {
         code: "validation_error",
         message: "photoIds[0] must be a string",
+      },
+    });
+  } finally {
+    if (server) await stopServer(server.process);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("rejects duplicate normalized photo IDs when creating a ticket", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
+  let server: RunningServer | undefined;
+  try {
+    server = await startServer(dataDir);
+    const response = await fetch(`${server.baseUrl}/api/tickets`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        title: "Inspect pipe",
+        photoIds: ["photo-1", "  photo-1 "],
+      }),
+    });
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), {
+      error: {
+        code: "validation_error",
+        message: "photoIds[1] duplicates photoIds[0]",
       },
     });
   } finally {
