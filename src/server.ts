@@ -266,6 +266,16 @@ async function main(): Promise<void> {
         sendJson(response, 200, { tickets: await repository.list() });
         return;
       }
+      if (pathname === "/api/tickets") {
+        response.setHeader("Allow", "GET, POST");
+        sendJson(response, 405, {
+          error: {
+            code: "method_not_allowed",
+            message: `Method ${request.method} is not allowed for /api/tickets`,
+          },
+        });
+        return;
+      }
       if (request.method === "POST" && pathname === "/api/photos") {
         const contentType = (request.headers["content-type"] ?? "")
           .split(";", 1)[0]
