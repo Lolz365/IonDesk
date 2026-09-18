@@ -13,6 +13,10 @@ class TicketNotFound(Exception):
     """Raised without exposing whether another tenant owns a guessed ID."""
 
 
+class InvalidTicketTransition(Exception):
+    """Raised when a ticket status change skips the required workflow."""
+
+
 async def create_ticket(
     session: AsyncSession,
     *,
@@ -57,3 +61,23 @@ async def list_tickets(
         .order_by(Ticket.created_at.desc(), Ticket.id.desc())
     )
     return list(tickets)
+
+
+async def transition_ticket(
+    session: AsyncSession,
+    *,
+    context: TenantContext,
+    ticket_id: uuid.UUID,
+    status: str,
+) -> Ticket:
+    ticket = await get_ticket(session, context=context, ticket_id=ticket_id)
+    next_status = {
+        "new": "assigned",
+        "assigned": "in_progress",
+        "in_progress": "closed",
+    }.get(ticket.status)
+    if status != next_status:
+        raise InvalidTicketTransition
+    ticket.status = status
+    await session.flush()
+    return ticket

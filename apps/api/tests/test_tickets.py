@@ -405,3 +405,50 @@ async def test_dispatcher_closes_in_progress_ticket(
 
     assert saved_ticket is not None
     assert saved_ticket.status == "closed"
+
+
+@pytest.mark.anyio
+async def test_dispatcher_cannot_close_new_ticket(
+    api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session, session.begin():
+        organization = Organization(
+            identifier="invalid-close-org", name="Invalid Close"
+        )
+        dispatcher = User(
+            oidc_subject="invalid-close-dispatcher",
+            email="invalid-close@example.test",
+            display_name="Invalid Close Dispatcher",
+        )
+        session.add_all([organization, dispatcher])
+        await session.flush()
+        membership = Membership(
+            organization_id=organization.id,
+            user_id=dispatcher.id,
+            role=Role.DISPATCHER,
+        )
+        ticket = Ticket(
+            organization_id=organization.id,
+            created_by_user_id=dispatcher.id,
+            title="Cannot close yet",
+        )
+        session.add_all([membership, ticket])
+        await session.flush()
+        context = TenantContext(
+            organization_id=organization.id,
+            user_id=dispatcher.id,
+            membership_id=membership.id,
+            role=Role.DISPATCHER,
+            capabilities=capabilities_for_role(Role.DISPATCHER),
+        )
+        ticket_id = ticket.id
+
+    client, set_context = api_client
+    set_context(context)
+    response = await client.patch(
+        f"/api/v1/tickets/{ticket_id}/status", json={"status": "closed"}
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "invalid_ticket_transition"

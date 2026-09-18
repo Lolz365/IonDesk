@@ -14,7 +14,12 @@ from app.services.authorization import (
     get_tenant_context,
     require_capability,
 )
-from app.services.tickets import create_ticket, get_ticket, list_tickets
+from app.services.tickets import (
+    create_ticket,
+    get_ticket,
+    list_tickets,
+    transition_ticket,
+)
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 SessionDependency = Annotated[AsyncSession, Depends(get_session)]
@@ -87,7 +92,11 @@ async def update_tenant_ticket_status(
         "closed": Capability.WORK_ORDER_CLOSE,
     }[body.status]
     require_capability(context, capability)
-    ticket = await get_ticket(session, context=context, ticket_id=ticket_id)
-    ticket.status = body.status
+    ticket = await transition_ticket(
+        session,
+        context=context,
+        ticket_id=ticket_id,
+        status=body.status,
+    )
     await session.commit()
     return TicketResponse.model_validate(ticket)

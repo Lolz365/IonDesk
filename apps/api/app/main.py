@@ -20,7 +20,7 @@ from app.services.authentication import OIDCJWTValidator
 from app.services.authorization import AuthenticationRequired, AuthorizationDenied
 from app.services.organizations import OrganizationNotFound, TransactionConflict
 from app.services.rate_limits import RateLimiter, RateLimitExceeded, RedisRateLimiter
-from app.services.tickets import TicketNotFound
+from app.services.tickets import InvalidTicketTransition, TicketNotFound
 from app.settings import Settings
 
 Probe = Callable[[], Awaitable[None]]
@@ -167,6 +167,17 @@ def create_app(
     @app.exception_handler(TicketNotFound)
     async def ticket_not_found(request: Request, _: Exception) -> JSONResponse:
         return error_response(request, 404, "ticket_not_found", "Ticket not found.")
+
+    @app.exception_handler(InvalidTicketTransition)
+    async def invalid_ticket_transition(
+        request: Request, _: Exception
+    ) -> JSONResponse:
+        return error_response(
+            request,
+            409,
+            "invalid_ticket_transition",
+            "The ticket cannot transition to the requested status.",
+        )
 
     @app.exception_handler(TransactionConflict)
     async def transaction_conflict(request: Request, _: Exception) -> JSONResponse:
