@@ -116,6 +116,18 @@ async def create_tenant_ticket(
         ),
     ] = None,
 ) -> TicketResponse:
+    idempotency_key_values = request.headers.getlist("idempotency-key")
+    if len(idempotency_key_values) > 1:
+        raise RequestValidationError(
+            [
+                {
+                    "type": "value_error",
+                    "loc": ("header", "Idempotency-Key"),
+                    "msg": "Value error, Idempotency-Key must be provided once",
+                    "input": idempotency_key_values,
+                }
+            ]
+        )
     require_capability(context, Capability.WORK_ORDER_CREATE)
     ticket = await create_ticket(
         session,
