@@ -8,9 +8,11 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.api.dependencies import authenticate_request
 from app.db.base import Base
 from app.main import create_app
 from app.services.authorization import TenantContext, get_tenant_context
+from app.services.rate_limits import DeterministicRateLimiter
 from app.settings import Settings
 
 
@@ -48,6 +50,9 @@ def test_settings() -> Settings:
         object_storage_access_key="unused",
         object_storage_secret_key="unused",
         object_storage_bucket="unused",
+        oidc_issuer="https://identity.example.test/realms/visualops",
+        oidc_audience="visualops-api",
+        oidc_jwks_url="https://identity.example.test/jwks",
     )
 
 
@@ -73,6 +78,7 @@ async def api_client(
         test_settings,
         probes=successful_probes,
         session_factory=session_factory,
+        rate_limiter=DeterministicRateLimiter(),
     )
     active_context: list[TenantContext] = []
 
@@ -83,6 +89,7 @@ async def api_client(
         return active_context[0]
 
     app.dependency_overrides[get_tenant_context] = injected_context
+    app.dependency_overrides[authenticate_request] = injected_context
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:

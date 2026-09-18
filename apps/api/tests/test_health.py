@@ -18,6 +18,9 @@ def settings() -> Settings:
         object_storage_access_key="access-key",
         object_storage_secret_key="secret-key",
         object_storage_bucket="visualops-private",
+        oidc_issuer="https://identity.example.test/realms/visualops",
+        oidc_audience="visualops-api",
+        oidc_jwks_url="https://identity.example.test/jwks",
     )
 
 

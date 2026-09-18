@@ -59,9 +59,10 @@ _ROLE_CAPABILITIES: dict[Role, frozenset[Capability]] = {
 class TenantContext:
     organization_id: uuid.UUID
     user_id: uuid.UUID
-    membership_id: uuid.UUID
-    role: Role
+    membership_id: uuid.UUID | None
+    role: Role | None
     capabilities: frozenset[Capability]
+    credential_id: str = ""
 
 
 class AuthenticationRequired(Exception):

@@ -19,7 +19,7 @@ from app.services.organizations import (
     rename_current_organization,
 )
 
-router = APIRouter(prefix="/api/v1/organizations", tags=["organizations"])
+router = APIRouter(prefix="/organizations", tags=["organizations"])
 
 SessionDependency = Annotated[AsyncSession, Depends(get_session)]
 TenantDependency = Annotated[TenantContext, Depends(get_tenant_context)]

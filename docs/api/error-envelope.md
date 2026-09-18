@@ -41,6 +41,30 @@ The Phase 2 organization reference routes use these stable codes:
 | 404 | `organization_not_found` | The resource is absent or belongs to another tenant |
 | 409 | `transaction_conflict` | A uniqueness or transactional invariant rejected the mutation |
 | 422 | `validation_error` | The request body or path is invalid |
+| 429 | `rate_limit_exceeded` | The credential or anonymous client exceeded its configured bound |
+| 503 | `service_unavailable` | A fail-closed authorization dependency is unavailable |
 
 The 404 response deliberately does not distinguish an absent UUID from a UUID
 owned by another organization.
+
+## Phase 3 authentication boundary
+
+Every business route below `/api/v1/` requires either `Authorization: Bearer
+<OIDC access token>` plus `X-Organization-ID`, or `Authorization: ApiKey
+<one-time-issued-token>`. Bearer claims are used only after signature, issuer,
+audience, expiry, and not-before validation against the configured JWKS. The
+subject and requested organization must resolve to an active local membership.
+
+`/health/live`, `/health/ready`, `/api/openapi.json`, and `/api/docs` remain
+public by explicit decision. Readiness exposes only `ready`/`not_ready` for
+PostgreSQL, Redis, and object storage. Business routes apply independent
+per-credential and anonymous fixed-window limits. The default implementation
+uses the configured Redis service and fails closed if it is unavailable; tests
+use a deterministic in-memory backend. No claim is made here that a live Redis
+deployment was exercised.
+
+Service API keys are tenant-bound, display a nonsecret prefix, and return their
+high-entropy token only in the creation response. Only a salted PBKDF2-SHA256
+hash is persisted. Keys have explicit capability scopes, optional expiry,
+revocation, and last-used timestamps. Creation and first revocation are audited;
+repeated revocation is safe and does not create duplicate audit events.

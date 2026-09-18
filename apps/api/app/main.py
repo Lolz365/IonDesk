@@ -12,10 +12,14 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette.exceptions import HTTPException
 
-from app.api.v1.organizations import router as organizations_router
+from app.api.dependencies import RateLimitPassthrough, TokenValidator
+from app.api.v1 import router as api_v1_router
 from app.db.session import create_db_engine, create_session_factory
+from app.services.api_keys import APIKeyNotFound
+from app.services.authentication import OIDCJWTValidator
 from app.services.authorization import AuthenticationRequired, AuthorizationDenied
 from app.services.organizations import OrganizationNotFound, TransactionConflict
+from app.services.rate_limits import RateLimiter, RateLimitExceeded, RedisRateLimiter
 from app.settings import Settings
 
 Probe = Callable[[], Awaitable[None]]
@@ -69,6 +73,8 @@ def create_app(
     *,
     probes: Mapping[str, Probe] | None = None,
     session_factory: async_sessionmaker[AsyncSession] | None = None,
+    oidc_validator: TokenValidator | None = None,
+    rate_limiter: RateLimiter | None = None,
 ) -> FastAPI:
     resolved_settings = settings or Settings()
     if session_factory is None:
@@ -87,6 +93,16 @@ def create_app(
         redoc_url=None,
     )
     app.state.session_factory = resolved_session_factory
+    app.state.settings = resolved_settings
+    app.state.oidc_validator = oidc_validator or OIDCJWTValidator(
+        issuer=resolved_settings.oidc_issuer,
+        audience=resolved_settings.oidc_audience,
+        jwks_url=resolved_settings.oidc_jwks_url,
+        cache_seconds=resolved_settings.oidc_jwks_cache_seconds,
+    )
+    app.state.rate_limiter = rate_limiter or RedisRateLimiter(
+        resolved_settings.redis_url
+    )
 
     def error_response(
         request: Request, status_code: int, code: str, message: str
@@ -124,6 +140,22 @@ def create_app(
             "forbidden",
             "You do not have permission to perform this action.",
         )
+
+    @app.exception_handler(RateLimitExceeded)
+    async def rate_limit_error(request: Request, _: Exception) -> JSONResponse:
+        return error_response(
+            request, 429, "rate_limit_exceeded", "Rate limit exceeded."
+        )
+
+    @app.exception_handler(RateLimitPassthrough)
+    async def rate_limit_unavailable(request: Request, _: Exception) -> JSONResponse:
+        return error_response(
+            request, 503, "service_unavailable", "Service temporarily unavailable."
+        )
+
+    @app.exception_handler(APIKeyNotFound)
+    async def api_key_not_found(request: Request, _: Exception) -> JSONResponse:
+        return error_response(request, 404, "api_key_not_found", "API key not found.")
 
     @app.exception_handler(OrganizationNotFound)
     async def organization_not_found(request: Request, _: Exception) -> JSONResponse:
@@ -177,5 +209,5 @@ def create_app(
         }
         return JSONResponse(body, status_code=200 if is_ready else 503)
 
-    app.include_router(organizations_router)
+    app.include_router(api_v1_router)
     return app

@@ -19,9 +19,11 @@ The production-shaped foundation lives alongside it:
   staging topology
 
 Architecture decisions are in `docs/architecture`. The current enterprise
-foundation includes tenant-scoped organization access, capability-based roles,
-append-only audit records, and a transactional outbox. OIDC, API-key issuance,
-work orders, and UI workflows remain later phases.
+foundation includes tenant-scoped organization access, validated OIDC access
+tokens, scoped service API keys, capability-based roles, append-only audit
+records, rate limits, and a transactional outbox. Work orders and UI workflows
+remain later phases. Keycloak is not deployed by this phase; configure an
+existing OIDC issuer, audience, and JWKS URL through environment variables.
 
 ## Enterprise foundation validation
 

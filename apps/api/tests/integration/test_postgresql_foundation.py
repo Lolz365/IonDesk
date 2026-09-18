@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from app.api.dependencies import authenticate_request
 from app.main import create_app
 from app.models import AuditEvent, Membership, Organization, OutboxEvent, User
 from app.services.authorization import (
@@ -83,6 +84,7 @@ async def test_postgresql_tenant_isolation_and_transactional_side_effects(
         session_factory=postgres_session_factory,
     )
     app.dependency_overrides[get_tenant_context] = lambda: context
+    app.dependency_overrides[authenticate_request] = lambda: context
     request_id = str(uuid.uuid4())
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
@@ -106,21 +108,26 @@ async def test_postgresql_tenant_isolation_and_transactional_side_effects(
             )
         )
         transaction_ids = (
-            await session.execute(
-                text(
-                    "SELECT xmin::text FROM organizations WHERE id = :organization_id "
-                    "UNION ALL SELECT xmin::text FROM audit_events "
-                    "WHERE correlation_id = :correlation_id "
-                    "UNION ALL SELECT xmin::text FROM outbox_events "
-                    "WHERE idempotency_key = :idempotency_key"
-                ),
-                {
-                    "organization_id": org_a.id,
-                    "correlation_id": uuid.UUID(request_id),
-                    "idempotency_key": f"organization.renamed:{request_id}",
-                },
+            (
+                await session.execute(
+                    text(
+                        "SELECT xmin::text FROM organizations "
+                        "WHERE id = :organization_id "
+                        "UNION ALL SELECT xmin::text FROM audit_events "
+                        "WHERE correlation_id = :correlation_id "
+                        "UNION ALL SELECT xmin::text FROM outbox_events "
+                        "WHERE idempotency_key = :idempotency_key"
+                    ),
+                    {
+                        "organization_id": org_a.id,
+                        "correlation_id": uuid.UUID(request_id),
+                        "idempotency_key": f"organization.renamed:{request_id}",
+                    },
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
     assert audit_event is not None
     assert audit_event.organization_id == org_a.id
