@@ -28,6 +28,13 @@ class APIKeyCreate(BaseModel):
     scopes: list[Capability] = Field(min_length=1)
     expires_at: datetime | None = None
 
+    @field_validator("name")
+    @classmethod
+    def name_is_not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("name must not be blank")
+        return value
+
     @field_validator("scopes")
     @classmethod
     def unique_scopes(cls, value: list[Capability]) -> list[Capability]:

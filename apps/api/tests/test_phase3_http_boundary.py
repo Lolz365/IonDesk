@@ -4,10 +4,11 @@ from collections.abc import Awaitable, Callable
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.main import create_app
-from app.models import Membership, Organization, User
+from app.models import APIKey, AuditEvent, Membership, Organization, User
 from app.services.authorization import Capability, Role
 from app.services.rate_limits import DeterministicRateLimiter
 from app.settings import Settings
@@ -185,6 +186,41 @@ async def test_api_key_creation_response_disables_caching(
 
     assert response.status_code == 200
     assert response.headers["cache-control"] == "no-store"
+
+
+@pytest.mark.anyio
+async def test_api_key_creation_rejects_whitespace_name_without_persistence(
+    session_factory: async_sessionmaker[AsyncSession],
+    successful_probes: dict[str, Callable[[], Awaitable[None]]],
+) -> None:
+    organization = await seeded_org(session_factory)
+    app = create_app(
+        phase3_settings(),
+        probes=successful_probes,
+        session_factory=session_factory,
+        oidc_validator=AcceptOneToken(),
+        rate_limiter=DeterministicRateLimiter(),
+    )
+    headers = {
+        "authorization": "Bearer signed-and-verified",
+        "x-organization-id": str(organization.id),
+    }
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            "/api/v1/api-keys",
+            headers=headers,
+            json={"name": "   ", "scopes": [Capability.ORGANIZATION_READ]},
+        )
+
+    async with session_factory() as session:
+        api_keys = list(await session.scalars(select(APIKey)))
+        audit_events = list(await session.scalars(select(AuditEvent)))
+
+    assert response.status_code == 422
+    assert api_keys == []
+    assert audit_events == []
 
 
 @pytest.mark.anyio
