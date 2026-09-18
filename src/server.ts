@@ -380,6 +380,9 @@ async function main(): Promise<void> {
       const analysisMatch = pathname.match(/^\/api\/tickets\/([^/]+)\/photos\/([^/]+)\/analyze$/);
       if (request.method === "POST" && analysisMatch) {
         const body = await readJson(request);
+        for (const field of Object.keys(body)) {
+          if (field !== "signals") throw new Error(`Unsupported analysis field: ${field}`);
+        }
         if (!Array.isArray(body.signals)) throw new Error("signals must be an array");
         const signals = body.signals as PhotoSignal[];
         const draft = await analyzeTicketPhoto(repository, {
