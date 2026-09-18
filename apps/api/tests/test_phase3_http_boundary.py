@@ -183,6 +183,47 @@ async def test_oidc_boundary_and_api_key_one_time_lifecycle(
 
 
 @pytest.mark.anyio
+async def test_api_key_cannot_mint_another_api_key(
+    session_factory: async_sessionmaker[AsyncSession],
+    successful_probes: dict[str, Callable[[], Awaitable[None]]],
+) -> None:
+    organization = await seeded_org(session_factory)
+    app = create_app(
+        phase3_settings(),
+        probes=successful_probes,
+        session_factory=session_factory,
+        oidc_validator=AcceptOneToken(),
+        rate_limiter=DeterministicRateLimiter(),
+    )
+    oidc_headers = {
+        "authorization": "Bearer signed-and-verified",
+        "x-organization-id": str(organization.id),
+    }
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        parent = await client.post(
+            "/api/v1/api-keys",
+            headers=oidc_headers,
+            json={"name": "Parent", "scopes": [Capability.API_KEY_MANAGE]},
+        )
+        response = await client.post(
+            "/api/v1/api-keys",
+            headers={"authorization": f"ApiKey {parent.json()['token']}"},
+            json={"name": "Child", "scopes": [Capability.API_KEY_MANAGE]},
+        )
+
+    async with session_factory() as session:
+        api_keys = list(await session.scalars(select(APIKey)))
+        audit_events = list(await session.scalars(select(AuditEvent)))
+
+    assert parent.status_code == 200
+    assert response.status_code == 403
+    assert [api_key.name for api_key in api_keys] == ["Parent"]
+    assert [event.action for event in audit_events] == ["api_key.created"]
+
+
+@pytest.mark.anyio
 async def test_api_key_creation_response_disables_caching(
     session_factory: async_sessionmaker[AsyncSession],
     successful_probes: dict[str, Callable[[], Awaitable[None]]],

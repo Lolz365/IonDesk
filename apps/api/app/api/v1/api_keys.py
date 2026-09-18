@@ -90,6 +90,8 @@ async def issue_api_key(
     context: TenantDependency,
 ) -> APIKeyCreated:
     require_capability(context, Capability.API_KEY_MANAGE)
+    if context.membership_id is None:
+        raise AuthorizationDenied
     scopes = frozenset(body.scopes)
     if not scopes.issubset(context.capabilities):
         raise AuthorizationDenied
