@@ -204,7 +204,9 @@ function photoBytesMatchContentType(bytes: Buffer, contentType: string): boolean
     );
   }
   if (contentType === "image/webp") {
-    return bytes.subarray(0, 4).toString("ascii") === "RIFF"
+    return bytes.length >= 12
+      && bytes.subarray(0, 4).toString("ascii") === "RIFF"
+      && bytes.readUInt32LE(4) === bytes.length - 8
       && bytes.subarray(8, 12).toString("ascii") === "WEBP";
   }
   return true;

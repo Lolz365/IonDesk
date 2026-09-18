@@ -599,6 +599,37 @@ test("rejects photo bytes that do not match the declared content type", async ()
   }
 });
 
+test("rejects WebP uploads whose RIFF container length is forged", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
+  let server: RunningServer | undefined;
+  try {
+    server = await startServer(dataDir);
+    const response = await fetch(`${server.baseUrl}/api/photos`, {
+      method: "POST",
+      headers: { "content-type": "image/webp" },
+      body: Buffer.from([
+        0x52, 0x49, 0x46, 0x46, 0x05, 0x00, 0x00, 0x00,
+        0x57, 0x45, 0x42, 0x50,
+      ]),
+    });
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), {
+      error: {
+        code: "validation_error",
+        message: "photo bytes do not match contentType image/webp",
+      },
+    });
+    assert.equal(
+      await readFile(join(dataDir, "photos.json"), "utf8").catch(() => undefined),
+      undefined,
+    );
+  } finally {
+    if (server) await stopServer(server.process);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("analyzes client-supplied signals with existing domain logic", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
   let server: RunningServer | undefined;
