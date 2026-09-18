@@ -250,3 +250,54 @@ async def test_owner_creates_tenant_scoped_ticket_with_non_empty_title(
     assert tickets[0].organization_id == organization.id
     assert tickets[0].title == "Leaking valve"
     assert tickets[0].status == "new"
+
+
+@pytest.mark.anyio
+async def test_dispatcher_assigns_new_ticket(
+    api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session, session.begin():
+        organization = Organization(identifier="dispatch-org", name="Dispatch Org")
+        dispatcher = User(
+            oidc_subject="dispatch-user",
+            email="dispatch@example.test",
+            display_name="Dispatch User",
+        )
+        session.add_all([organization, dispatcher])
+        await session.flush()
+        membership = Membership(
+            organization_id=organization.id,
+            user_id=dispatcher.id,
+            role=Role.DISPATCHER,
+        )
+        ticket = Ticket(
+            organization_id=organization.id,
+            created_by_user_id=dispatcher.id,
+            title="Assign this ticket",
+        )
+        session.add_all([membership, ticket])
+        await session.flush()
+        context = TenantContext(
+            organization_id=organization.id,
+            user_id=dispatcher.id,
+            membership_id=membership.id,
+            role=Role.DISPATCHER,
+            capabilities=capabilities_for_role(Role.DISPATCHER),
+        )
+        ticket_id = ticket.id
+
+    client, set_context = api_client
+    set_context(context)
+    response = await client.patch(
+        f"/api/v1/tickets/{ticket_id}/status", json={"status": "assigned"}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "assigned"
+
+    async with session_factory() as session:
+        saved_ticket = await session.get(Ticket, ticket_id)
+
+    assert saved_ticket is not None
+    assert saved_ticket.status == "assigned"

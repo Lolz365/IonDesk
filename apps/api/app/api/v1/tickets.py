@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, ConfigDict, StringConstraints
@@ -26,6 +26,10 @@ class TicketCreate(BaseModel):
         str,
         StringConstraints(strip_whitespace=True, min_length=1, max_length=200),
     ]
+
+
+class TicketStatusUpdate(BaseModel):
+    status: Literal["assigned"]
 
 
 class TicketResponse(BaseModel):
@@ -66,5 +70,19 @@ async def create_tenant_ticket(
 ) -> TicketResponse:
     require_capability(context, Capability.WORK_ORDER_CREATE)
     ticket = await create_ticket(session, context=context, title=body.title)
+    await session.commit()
+    return TicketResponse.model_validate(ticket)
+
+
+@router.patch("/{ticket_id}/status", response_model=TicketResponse)
+async def update_tenant_ticket_status(
+    ticket_id: uuid.UUID,
+    body: TicketStatusUpdate,
+    session: SessionDependency,
+    context: TenantDependency,
+) -> TicketResponse:
+    require_capability(context, Capability.WORK_ORDER_DISPATCH)
+    ticket = await get_ticket(session, context=context, ticket_id=ticket_id)
+    ticket.status = body.status
     await session.commit()
     return TicketResponse.model_validate(ticket)
