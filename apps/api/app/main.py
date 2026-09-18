@@ -111,7 +111,7 @@ def create_app(
         return JSONResponse(
             {"error": {"code": code, "message": message, "request_id": request_id}},
             status_code=status_code,
-            headers={"x-request-id": request_id},
+            headers={"x-request-id": request_id, "cache-control": "no-store"},
         )
 
     @app.middleware("http")

@@ -97,6 +97,29 @@ async def test_health_and_openapi_are_public_but_business_routes_require_auth(
 
 
 @pytest.mark.anyio
+async def test_authentication_error_disables_caching(
+    session_factory: async_sessionmaker[AsyncSession],
+    successful_probes: dict[str, Callable[[], Awaitable[None]]],
+) -> None:
+    app = create_app(
+        phase3_settings(),
+        probes=successful_probes,
+        session_factory=session_factory,
+        oidc_validator=AcceptOneToken(),
+        rate_limiter=DeterministicRateLimiter(),
+    )
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.get(
+            "/api/v1/organizations/00000000-0000-0000-0000-000000000000"
+        )
+
+    assert response.status_code == 401
+    assert response.headers["cache-control"] == "no-store"
+
+
+@pytest.mark.anyio
 async def test_oidc_boundary_and_api_key_one_time_lifecycle(
     session_factory: async_sessionmaker[AsyncSession],
     successful_probes: dict[str, Callable[[], Awaitable[None]]],
