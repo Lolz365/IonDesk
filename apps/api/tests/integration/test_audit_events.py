@@ -115,9 +115,10 @@ async def test_mutation_normalizes_name_before_response_audit_and_idempotency_ha
     assert persisted is not None and persisted.name == "After"
     assert audit_event is not None and audit_event.after == {"name": "After"}
     assert idempotency_record is not None
-    assert idempotency_record.request_hash == hashlib.sha256(
-        expected_request.encode()
-    ).hexdigest()
+    assert (
+        idempotency_record.request_hash
+        == hashlib.sha256(expected_request.encode()).hexdigest()
+    )
 
 
 @pytest.mark.anyio
@@ -154,9 +155,10 @@ async def test_noop_mutation_persists_idempotency_replay_without_events(
         separators=(",", ":"),
     )
     assert idempotency_record is not None
-    assert idempotency_record.request_hash == hashlib.sha256(
-        expected_request.encode()
-    ).hexdigest()
+    assert (
+        idempotency_record.request_hash
+        == hashlib.sha256(expected_request.encode()).hexdigest()
+    )
     assert idempotency_record.response_status == 200
     assert idempotency_record.response_body == expected_response
     assert audit_count == 0

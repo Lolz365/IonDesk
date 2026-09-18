@@ -66,6 +66,9 @@ jobs:
       OBJECT_STORAGE_ACCESS_KEY: validation
       OBJECT_STORAGE_SECRET_KEY: validation
       OBJECT_STORAGE_BUCKET: visualops-private
+      OIDC_ISSUER: https://issuer.example.test
+      OIDC_AUDIENCE: visualops-api
+      OIDC_JWKS_URL: https://issuer.example.test/.well-known/jwks.json
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v6

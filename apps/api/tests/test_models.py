@@ -43,9 +43,7 @@ def test_foundation_metadata_has_tenant_keys_constraints_and_indexes() -> None:
 def test_migrations_are_the_ordered_versioned_schema_source() -> None:
     from pathlib import Path
 
-    versions = sorted(
-        (Path(__file__).parents[1] / "alembic" / "versions").glob("*.py")
-    )
+    versions = sorted((Path(__file__).parents[1] / "alembic" / "versions").glob("*.py"))
 
     assert [version.name for version in versions] == [
         "0001_tenant_foundation.py",

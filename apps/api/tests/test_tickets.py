@@ -324,9 +324,7 @@ async def test_owner_limits_ticket_list_to_newest_tenant_ticket(
     response = await client.get("/api/v1/tickets?limit=1")
 
     assert response.status_code == 200
-    assert [ticket["title"] for ticket in response.json()] == [
-        "Newest limited ticket"
-    ]
+    assert [ticket["title"] for ticket in response.json()] == ["Newest limited ticket"]
 
 
 @pytest.mark.anyio
@@ -391,9 +389,7 @@ async def test_owner_creates_tenant_scoped_ticket_with_non_empty_title(
     set_context(auditor_context)
     denied = await client.post("/api/v1/tickets", json={"title": "Not allowed"})
     set_context(owner_context)
-    response = await client.post(
-        "/api/v1/tickets", json={"title": "  Leaking valve  "}
-    )
+    response = await client.post("/api/v1/tickets", json={"title": "  Leaking valve  "})
 
     assert denied.status_code == 403
     assert response.status_code == 201
@@ -518,9 +514,7 @@ async def test_ticket_creation_replays_idempotent_response_without_duplicate_wri
     assert second.json() == first.json()
     async with session_factory() as session:
         ticket_count = await session.scalar(select(func.count()).select_from(Ticket))
-        audit_count = await session.scalar(
-            select(func.count()).select_from(AuditEvent)
-        )
+        audit_count = await session.scalar(select(func.count()).select_from(AuditEvent))
         outbox_count = await session.scalar(
             select(func.count()).select_from(OutboxEvent)
         )

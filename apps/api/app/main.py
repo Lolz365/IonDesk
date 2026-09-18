@@ -169,9 +169,7 @@ def create_app(
         return error_response(request, 404, "ticket_not_found", "Ticket not found.")
 
     @app.exception_handler(InvalidTicketTransition)
-    async def invalid_ticket_transition(
-        request: Request, _: Exception
-    ) -> JSONResponse:
+    async def invalid_ticket_transition(request: Request, _: Exception) -> JSONResponse:
         return error_response(
             request,
             409,

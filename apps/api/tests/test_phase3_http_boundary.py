@@ -539,9 +539,7 @@ async def test_authenticated_rate_limit_backend_failure_fails_closed(
     successful_probes: dict[str, Callable[[], Awaitable[None]]],
 ) -> None:
     class UnavailableRateLimiter:
-        async def check(
-            self, key: str, *, limit: int, window_seconds: int
-        ) -> None:
+        async def check(self, key: str, *, limit: int, window_seconds: int) -> None:
             raise RuntimeError("redis unavailable")
 
     organization = await seeded_org(session_factory)

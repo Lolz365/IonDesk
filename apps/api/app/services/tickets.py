@@ -36,9 +36,7 @@ def _create_request_hash(title: str) -> str:
     return hashlib.sha256(request.encode()).hexdigest()
 
 
-def _stored_response(
-    record: IdempotencyRecord, request_hash: str
-) -> dict[str, object]:
+def _stored_response(record: IdempotencyRecord, request_hash: str) -> dict[str, object]:
     if (
         record.request_hash != request_hash
         or record.response_status != 201
