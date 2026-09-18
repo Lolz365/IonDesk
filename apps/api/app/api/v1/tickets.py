@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Header, Request, status
 from pydantic import BaseModel, ConfigDict, StringConstraints
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -73,6 +73,15 @@ async def create_tenant_ticket(
     request: Request,
     session: SessionDependency,
     context: TenantDependency,
+    idempotency_key: Annotated[
+        str | None,
+        Header(
+            alias="Idempotency-Key",
+            min_length=1,
+            max_length=200,
+            pattern=r"\S",
+        ),
+    ] = None,
 ) -> TicketResponse:
     require_capability(context, Capability.WORK_ORDER_CREATE)
     ticket = await create_ticket(
@@ -82,8 +91,8 @@ async def create_tenant_ticket(
         correlation_id=uuid.UUID(request.state.request_id),
         source_ip=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
+        idempotency_key=idempotency_key,
     )
-    await session.commit()
     return TicketResponse.model_validate(ticket)
 
 

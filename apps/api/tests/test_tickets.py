@@ -6,10 +6,18 @@ from datetime import UTC, datetime
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models import AuditEvent, Membership, Organization, OutboxEvent, Ticket, User
+from app.models import (
+    AuditEvent,
+    IdempotencyRecord,
+    Membership,
+    Organization,
+    OutboxEvent,
+    Ticket,
+    User,
+)
 from app.services.authorization import Role, TenantContext, capabilities_for_role
 
 
@@ -316,6 +324,63 @@ async def test_owner_ticket_creation_writes_audit_and_outbox_events(
         "status": "new",
     }
     assert outbox_event.idempotency_key == f"ticket.created:{ticket_id}:{request_id}"
+
+
+@pytest.mark.anyio
+async def test_ticket_creation_replays_idempotent_response_without_duplicate_writes(
+    api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session, session.begin():
+        organization = Organization(identifier="idempotent-org", name="Idempotent Org")
+        owner = User(
+            oidc_subject="idempotent-owner",
+            email="idempotent-owner@example.test",
+            display_name="Idempotent Owner",
+        )
+        session.add_all([organization, owner])
+        await session.flush()
+        membership = Membership(
+            organization_id=organization.id,
+            user_id=owner.id,
+            role=Role.OWNER,
+        )
+        session.add(membership)
+        await session.flush()
+        context = TenantContext(
+            organization_id=organization.id,
+            user_id=owner.id,
+            membership_id=membership.id,
+            role=Role.OWNER,
+            capabilities=capabilities_for_role(Role.OWNER),
+        )
+
+    client, set_context = api_client
+    set_context(context)
+    headers = {"Idempotency-Key": "create-ticket-1"}
+    payload = {"title": "Leaking valve"}
+
+    first = await client.post("/api/v1/tickets", headers=headers, json=payload)
+    second = await client.post("/api/v1/tickets", headers=headers, json=payload)
+
+    assert first.status_code == second.status_code == 201
+    assert second.json() == first.json()
+    async with session_factory() as session:
+        ticket_count = await session.scalar(select(func.count()).select_from(Ticket))
+        audit_count = await session.scalar(
+            select(func.count()).select_from(AuditEvent)
+        )
+        outbox_count = await session.scalar(
+            select(func.count()).select_from(OutboxEvent)
+        )
+        idempotency_count = await session.scalar(
+            select(func.count()).select_from(IdempotencyRecord)
+        )
+
+    assert ticket_count == 1
+    assert audit_count == 1
+    assert outbox_count == 1
+    assert idempotency_count == 1
 
 
 @pytest.mark.anyio
