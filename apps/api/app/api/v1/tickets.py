@@ -117,7 +117,7 @@ async def create_tenant_ticket(
             alias="Idempotency-Key",
             min_length=1,
             max_length=200,
-            pattern=r"^\S+$",
+            pattern=r"^[^,\s]+$",
         ),
     ] = None,
 ) -> TicketResponse:
@@ -159,7 +159,7 @@ async def update_tenant_ticket_status(
             alias="Idempotency-Key",
             min_length=1,
             max_length=200,
-            pattern=r"^\S+$",
+            pattern=r"^[^,\s]+$",
         ),
     ] = None,
 ) -> TicketResponse:

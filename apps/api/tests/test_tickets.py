@@ -749,6 +749,64 @@ async def test_ticket_creation_rejects_duplicate_idempotency_key_headers_without
 
 
 @pytest.mark.anyio
+async def test_ticket_creation_rejects_coalesced_idempotency_key_without_writes(
+    api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session, session.begin():
+        organization = Organization(
+            identifier="coalesced-idempotency-org",
+            name="Coalesced Idempotency Org",
+        )
+        owner = User(
+            oidc_subject="coalesced-idempotency-owner",
+            email="coalesced-idempotency-owner@example.test",
+            display_name="Coalesced Idempotency Owner",
+        )
+        session.add_all([organization, owner])
+        await session.flush()
+        membership = Membership(
+            organization_id=organization.id,
+            user_id=owner.id,
+            role=Role.OWNER,
+        )
+        session.add(membership)
+        await session.flush()
+        context = TenantContext(
+            organization_id=organization.id,
+            user_id=owner.id,
+            membership_id=membership.id,
+            role=Role.OWNER,
+            capabilities=capabilities_for_role(Role.OWNER),
+        )
+
+    client, set_context = api_client
+    set_context(context)
+    response = await client.post(
+        "/api/v1/tickets",
+        headers={"Idempotency-Key": "first-key,second-key"},
+        json={"title": "Leaking valve"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
+    async with session_factory() as session:
+        ticket_count = await session.scalar(select(func.count()).select_from(Ticket))
+        audit_count = await session.scalar(select(func.count()).select_from(AuditEvent))
+        outbox_count = await session.scalar(
+            select(func.count()).select_from(OutboxEvent)
+        )
+        idempotency_count = await session.scalar(
+            select(func.count()).select_from(IdempotencyRecord)
+        )
+
+    assert ticket_count == 0
+    assert audit_count == 0
+    assert outbox_count == 0
+    assert idempotency_count == 0
+
+
+@pytest.mark.anyio
 async def test_ticket_status_transition_rejects_duplicate_idempotency_key_headers(
     api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
     session_factory: async_sessionmaker[AsyncSession],
