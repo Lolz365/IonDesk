@@ -322,6 +322,37 @@ test("returns method not allowed for PUT on an individual ticket route", async (
   }
 });
 
+test("rejects unsupported fields when resolving a ticket", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
+  let server: RunningServer | undefined;
+  try {
+    server = await startServer(dataDir);
+    const ticketResponse = await fetch(`${server.baseUrl}/api/tickets`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title: "Inspect pipe" }),
+    });
+    const ticket = await ticketResponse.json() as { id: string };
+
+    const response = await fetch(`${server.baseUrl}/api/tickets/${ticket.id}/resolve`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ resolution: "Replaced valve" }),
+    });
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), {
+      error: {
+        code: "validation_error",
+        message: "Unsupported resolve field: resolution",
+      },
+    });
+  } finally {
+    if (server) await stopServer(server.process);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("rejects a non-array photoIds field when creating a ticket", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
   let server: RunningServer | undefined;

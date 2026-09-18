@@ -403,6 +403,12 @@ async function main(): Promise<void> {
       }
       const resolveMatch = pathname.match(/^\/api\/tickets\/([^/]+)\/resolve$/);
       if (request.method === "POST" && resolveMatch) {
+        if (request.headers["transfer-encoding"] || Number(request.headers["content-length"] ?? 0) > 0) {
+          const body = await readJson(request);
+          for (const field of Object.keys(body)) {
+            throw new Error(`Unsupported resolve field: ${field}`);
+          }
+        }
         sendJson(response, 200, await resolveTicket(repository, safeId(resolveMatch[1])));
         return;
       }
