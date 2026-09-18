@@ -51,9 +51,15 @@ async def list_tenant_tickets(
     session: SessionDependency,
     context: TenantDependency,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    ticket_status: Annotated[
+        Literal["new", "assigned", "in_progress", "closed"] | None,
+        Query(alias="status"),
+    ] = None,
 ) -> list[TicketResponse]:
     require_capability(context, Capability.WORK_ORDER_READ)
-    tickets = await list_tickets(session, context=context, limit=limit)
+    tickets = await list_tickets(
+        session, context=context, limit=limit, status=ticket_status
+    )
     return [TicketResponse.model_validate(ticket) for ticket in tickets]
 
 

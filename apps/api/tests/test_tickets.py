@@ -200,6 +200,81 @@ async def test_owner_lists_tickets_newest_first_with_id_tie_breaker(
 
 
 @pytest.mark.anyio
+async def test_owner_filters_tenant_ticket_list_by_assigned_status(
+    api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session, session.begin():
+        organization = Organization(identifier="filtered-org", name="Filtered Org")
+        other_organization = Organization(
+            identifier="other-filtered-org", name="Other Filtered Org"
+        )
+        owner = User(
+            oidc_subject="filtering-owner",
+            email="filtering-owner@example.test",
+            display_name="Filtering Owner",
+        )
+        session.add_all([organization, other_organization, owner])
+        await session.flush()
+        membership = Membership(
+            organization_id=organization.id,
+            user_id=owner.id,
+            role=Role.OWNER,
+        )
+        session.add_all(
+            [
+                membership,
+                Ticket(
+                    organization_id=organization.id,
+                    created_by_user_id=owner.id,
+                    title="Older assigned ticket",
+                    status="assigned",
+                    created_at=datetime(2026, 1, 1, tzinfo=UTC),
+                ),
+                Ticket(
+                    organization_id=organization.id,
+                    created_by_user_id=owner.id,
+                    title="Newer assigned ticket",
+                    status="assigned",
+                    created_at=datetime(2026, 1, 2, tzinfo=UTC),
+                ),
+                Ticket(
+                    organization_id=organization.id,
+                    created_by_user_id=owner.id,
+                    title="New tenant ticket",
+                    status="new",
+                    created_at=datetime(2026, 1, 3, tzinfo=UTC),
+                ),
+                Ticket(
+                    organization_id=other_organization.id,
+                    created_by_user_id=owner.id,
+                    title="Other tenant assigned ticket",
+                    status="assigned",
+                    created_at=datetime(2026, 1, 4, tzinfo=UTC),
+                ),
+            ]
+        )
+        await session.flush()
+        owner_context = TenantContext(
+            organization_id=organization.id,
+            user_id=owner.id,
+            membership_id=membership.id,
+            role=Role.OWNER,
+            capabilities=capabilities_for_role(Role.OWNER),
+        )
+
+    client, set_context = api_client
+    set_context(owner_context)
+    response = await client.get("/api/v1/tickets?status=assigned")
+
+    assert response.status_code == 200
+    assert [ticket["title"] for ticket in response.json()] == [
+        "Newer assigned ticket",
+        "Older assigned ticket",
+    ]
+
+
+@pytest.mark.anyio
 async def test_owner_limits_ticket_list_to_newest_tenant_ticket(
     api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
     session_factory: async_sessionmaker[AsyncSession],

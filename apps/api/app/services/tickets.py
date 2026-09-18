@@ -181,12 +181,13 @@ async def list_tickets(
     *,
     context: TenantContext,
     limit: int,
+    status: str | None = None,
 ) -> list[Ticket]:
+    query = select(Ticket).where(Ticket.organization_id == context.organization_id)
+    if status is not None:
+        query = query.where(Ticket.status == status)
     tickets = await session.scalars(
-        select(Ticket)
-        .where(Ticket.organization_id == context.organization_id)
-        .order_by(Ticket.created_at.desc(), Ticket.id.desc())
-        .limit(limit)
+        query.order_by(Ticket.created_at.desc(), Ticket.id.desc()).limit(limit)
     )
     return list(tickets)
 
