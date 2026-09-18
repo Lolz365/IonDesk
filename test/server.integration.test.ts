@@ -576,6 +576,39 @@ test("lists a bounded ticket page with a continuation cursor", async () => {
   }
 });
 
+test("filters the ticket list by workflow status", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
+  let server: RunningServer | undefined;
+  try {
+    server = await startServer(dataDir);
+    const tickets: Array<Record<string, unknown>> = [];
+    for (const title of ["Resolved leak", "Open inspection"]) {
+      const response = await fetch(`${server.baseUrl}/api/tickets`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title }),
+      });
+      tickets.push(await response.json() as Record<string, unknown>);
+    }
+    await fetch(`${server.baseUrl}/api/tickets/${tickets[0].id}/resolve`, {
+      method: "POST",
+    });
+
+    const openResponse = await fetch(`${server.baseUrl}/api/tickets?status=open`);
+    const resolvedResponse = await fetch(`${server.baseUrl}/api/tickets?status=resolved`);
+
+    assert.equal(openResponse.status, 200);
+    assert.deepEqual(await openResponse.json(), { tickets: [tickets[1]] });
+    assert.equal(resolvedResponse.status, 200);
+    assert.deepEqual(await resolvedResponse.json(), {
+      tickets: [{ ...tickets[0], status: "resolved" }],
+    });
+  } finally {
+    if (server) await stopServer(server.process);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("rejects duplicate ticket pagination query parameters", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
   let server: RunningServer | undefined;
@@ -601,13 +634,13 @@ test("rejects unsupported ticket list query parameters", async () => {
   let server: RunningServer | undefined;
   try {
     server = await startServer(dataDir);
-    const response = await fetch(`${server.baseUrl}/api/tickets?status=open`);
+    const response = await fetch(`${server.baseUrl}/api/tickets?sort=title`);
 
     assert.equal(response.status, 400);
     assert.deepEqual(await response.json(), {
       error: {
         code: "validation_error",
-        message: "Unsupported query parameter: status",
+        message: "Unsupported query parameter: sort",
       },
     });
   } finally {

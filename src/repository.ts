@@ -1,8 +1,9 @@
-import type { Ticket } from "./index.ts";
+import type { Ticket, TicketStatus } from "./index.ts";
 
 export interface ListTicketsPageInput {
   readonly limit: number;
   readonly cursor?: string;
+  readonly status?: TicketStatus;
 }
 
 export interface TicketPage {
@@ -12,7 +13,7 @@ export interface TicketPage {
 
 export interface TicketRepository {
   save(ticket: Ticket): Promise<void>;
-  list(): Promise<readonly Ticket[]>;
+  list(status?: TicketStatus): Promise<readonly Ticket[]>;
   listPage(input: ListTicketsPageInput): Promise<TicketPage>;
   findById(id: string): Promise<Ticket | undefined>;
   resolve(id: string): Promise<Ticket | undefined>;
@@ -65,8 +66,12 @@ export class InMemoryTicketRepository implements TicketRepository {
     this.#tickets.set(snapshot.id, snapshot);
   }
 
-  async list(): Promise<readonly Ticket[]> {
-    return Object.freeze([...this.#tickets.values()]);
+  async list(status?: TicketStatus): Promise<readonly Ticket[]> {
+    return Object.freeze(
+      [...this.#tickets.values()].filter(
+        (ticket) => status === undefined || ticket.status === status,
+      ),
+    );
   }
 
   async listPage(input: ListTicketsPageInput): Promise<TicketPage> {
@@ -80,7 +85,9 @@ export class InMemoryTicketRepository implements TicketRepository {
       throw new Error("cursor is required");
     }
 
-    const tickets = [...this.#tickets.values()];
+    const tickets = [...this.#tickets.values()].filter(
+      (ticket) => input.status === undefined || ticket.status === input.status,
+    );
     let startIndex = 0;
     if (input.cursor !== undefined) {
       const cursorIndex = tickets.findIndex(({ id }) => id === input.cursor);

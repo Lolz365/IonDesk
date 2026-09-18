@@ -106,7 +106,7 @@ All errors use `{ "error": { "code": "…", "message": "…" } }` JSON.
 | `POST` | `/api/photos` | Upload raw image bytes; set `Content-Type` to `image/jpeg`, `image/png`, or `image/webp` (10 MiB maximum) |
 | `GET` | `/api/photos/:id` | Retrieve original image bytes |
 | `POST` | `/api/tickets` | Create from JSON `{ "title", "description"?, "photoIds"? }` |
-| `GET` | `/api/tickets` | List tickets |
+| `GET` | `/api/tickets` | List tickets; optionally filter with `?status=open` or `?status=resolved` |
 | `GET` | `/api/tickets/:id` | Get one ticket |
 | `POST` | `/api/tickets/:id/resolve` | Resolve an open ticket |
 | `POST` | `/api/tickets/:ticketId/photos/:photoId/analyze` | Analyze JSON `{ "signals": [{ "label", "confidence" }] }` |

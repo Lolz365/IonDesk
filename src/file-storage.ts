@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { validatePhotoUpload, type PhotoUpload, type Ticket } from "./index.ts";
+import { validatePhotoUpload, type PhotoUpload, type Ticket, type TicketStatus } from "./index.ts";
 import type { PhotoStorage } from "./photo-storage.ts";
 import { DuplicateRecordError, InMemoryTicketRepository, type ListTicketsPageInput, type TicketPage, type TicketRepository } from "./repository.ts";
 
@@ -56,7 +56,7 @@ export class FileTicketRepository implements TicketRepository {
     await this.#persist();
   }
 
-  list(): Promise<readonly Ticket[]> { return this.#memory.list(); }
+  list(status?: TicketStatus): Promise<readonly Ticket[]> { return this.#memory.list(status); }
   listPage(input: ListTicketsPageInput): Promise<TicketPage> { return this.#memory.listPage(input); }
   findById(id: string): Promise<Ticket | undefined> { return this.#memory.findById(validateResourceId(id)); }
 

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { analyzeTicketPhoto, createAndSaveTicketWithPhotos, listTicketsPage, resolveTicket, validateAndSavePhotoUpload, validateTicketCreateFields, type PhotoSignal } from "./index.ts";
+import { analyzeTicketPhoto, createAndSaveTicketWithPhotos, listTicketsPage, resolveTicket, validateAndSavePhotoUpload, validateTicketCreateFields, type PhotoSignal, type TicketStatus } from "./index.ts";
 import { FilePhotoStorage, FileTicketRepository, validateResourceId } from "./file-storage.ts";
 
 const MAX_PHOTO_SIZE_BYTES = 10 * 1024 * 1024;
@@ -284,7 +284,7 @@ async function main(): Promise<void> {
       }
       if (request.method === "GET" && pathname === "/api/tickets") {
         for (const parameter of url.searchParams.keys()) {
-          if (parameter !== "limit" && parameter !== "cursor") {
+          if (parameter !== "limit" && parameter !== "cursor" && parameter !== "status") {
             throw new HttpError(
               400,
               "validation_error",
@@ -292,7 +292,7 @@ async function main(): Promise<void> {
             );
           }
         }
-        for (const parameter of ["limit", "cursor"]) {
+        for (const parameter of ["limit", "cursor", "status"]) {
           if (url.searchParams.getAll(parameter).length > 1) {
             throw new HttpError(400, "validation_error", `${parameter} must not be repeated`);
           }
@@ -300,16 +300,24 @@ async function main(): Promise<void> {
         if (url.searchParams.has("cursor") && !url.searchParams.has("limit")) {
           throw new HttpError(400, "validation_error", "cursor requires an explicit limit");
         }
+        const status = url.searchParams.get("status");
+        if (status !== null && status !== "open" && status !== "resolved") {
+          throw new HttpError(400, "validation_error", 'status must be "open" or "resolved"');
+        }
+        const ticketStatus = status as TicketStatus | null;
         if (url.searchParams.has("limit")) {
           const limit = Number(url.searchParams.get("limit"));
           const cursor = url.searchParams.get("cursor");
           sendJson(response, 200, await listTicketsPage(repository, {
             limit,
             ...(cursor === null ? {} : { cursor }),
+            ...(ticketStatus === null ? {} : { status: ticketStatus }),
           }));
           return;
         }
-        sendJson(response, 200, { tickets: await repository.list() });
+        sendJson(response, 200, {
+          tickets: await repository.list(ticketStatus ?? undefined),
+        });
         return;
       }
       if (pathname === "/api/tickets") {
