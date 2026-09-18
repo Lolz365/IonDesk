@@ -17,6 +17,7 @@ def test_foundation_metadata_has_tenant_keys_constraints_and_indexes() -> None:
         "audit_events",
         "outbox_events",
         "idempotency_records",
+        "tickets",
     }
 
     assert expected_tables == set(Base.metadata.tables)
@@ -39,13 +40,19 @@ def test_foundation_metadata_has_tenant_keys_constraints_and_indexes() -> None:
     assert Organization.__table__.c.id.type.python_type.__name__ == "UUID"
 
 
-def test_initial_migration_is_the_single_versioned_schema_source() -> None:
+def test_migrations_are_the_ordered_versioned_schema_source() -> None:
     from pathlib import Path
 
     versions = list((Path(__file__).parents[1] / "alembic" / "versions").glob("*.py"))
 
-    assert len(versions) == 1
-    migration = versions[0].read_text()
-    assert 'revision: str = "0001_tenant_foundation"' in migration
-    assert "CREATE TRIGGER organizations_identifier_immutable" in migration
-    assert "CREATE TRIGGER audit_events_append_only" in migration
+    assert [version.name for version in versions] == [
+        "0001_tenant_foundation.py",
+        "0002_ticket_workflow.py",
+    ]
+    foundation = versions[0].read_text()
+    ticket_workflow = versions[1].read_text()
+    assert 'revision: str = "0001_tenant_foundation"' in foundation
+    assert "CREATE TRIGGER organizations_identifier_immutable" in foundation
+    assert "CREATE TRIGGER audit_events_append_only" in foundation
+    assert 'down_revision: str | None = "0001_tenant_foundation"' in ticket_workflow
+    assert "CREATE TRIGGER tickets_tenant_immutable" in ticket_workflow

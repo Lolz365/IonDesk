@@ -5,6 +5,7 @@ from app.models.idempotency_record import IdempotencyRecord
 from app.models.membership import Membership
 from app.models.organization import Organization
 from app.models.outbox_event import OutboxEvent
+from app.models.ticket import Ticket
 from app.models.user import User
 
 __all__ = [
@@ -14,5 +15,6 @@ __all__ = [
     "Membership",
     "Organization",
     "OutboxEvent",
+    "Ticket",
     "User",
 ]
