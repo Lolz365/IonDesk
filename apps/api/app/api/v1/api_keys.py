@@ -33,7 +33,7 @@ class APIKeyCreate(BaseModel):
     def name_is_not_blank(cls, value: str) -> str:
         if not value.strip():
             raise ValueError("name must not be blank")
-        return value
+        return value.strip()
 
     @field_validator("scopes")
     @classmethod

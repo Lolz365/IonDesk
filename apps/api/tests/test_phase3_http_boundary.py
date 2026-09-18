@@ -189,6 +189,36 @@ async def test_api_key_creation_response_disables_caching(
 
 
 @pytest.mark.anyio
+async def test_api_key_creation_trims_name_in_response(
+    session_factory: async_sessionmaker[AsyncSession],
+    successful_probes: dict[str, Callable[[], Awaitable[None]]],
+) -> None:
+    organization = await seeded_org(session_factory)
+    app = create_app(
+        phase3_settings(),
+        probes=successful_probes,
+        session_factory=session_factory,
+        oidc_validator=AcceptOneToken(),
+        rate_limiter=DeterministicRateLimiter(),
+    )
+    headers = {
+        "authorization": "Bearer signed-and-verified",
+        "x-organization-id": str(organization.id),
+    }
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            "/api/v1/api-keys",
+            headers=headers,
+            json={"name": "  CMMS  ", "scopes": [Capability.ORGANIZATION_READ]},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["name"] == "CMMS"
+
+
+@pytest.mark.anyio
 async def test_api_key_creation_rejects_whitespace_name_without_persistence(
     session_factory: async_sessionmaker[AsyncSession],
     successful_probes: dict[str, Callable[[], Awaitable[None]]],
