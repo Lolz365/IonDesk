@@ -85,3 +85,24 @@ test("DELETE /health returns allowed methods with its method-not-allowed JSON er
     await rm(dataDir, { recursive: true, force: true });
   }
 });
+
+test("HEAD /health returns the GET health headers without a response body", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "visualops-health-method-"));
+  let server: RunningServer | undefined;
+  try {
+    server = await startServer(dataDir);
+    const getResponse = await fetch(`${server.baseUrl}/health`);
+    const headResponse = await fetch(`${server.baseUrl}/health`, { method: "HEAD" });
+    const healthHeaders = (response: Response) => Object.fromEntries(
+      [...response.headers].filter(([name]) => !["connection", "date", "keep-alive"].includes(name)),
+    );
+
+    assert.equal(headResponse.status, 200);
+    assert.equal(headResponse.headers.get("content-type"), "application/json; charset=utf-8");
+    assert.deepEqual(healthHeaders(headResponse), healthHeaders(getResponse));
+    assert.equal(await headResponse.text(), "");
+  } finally {
+    if (server) await stopServer(server.process);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});

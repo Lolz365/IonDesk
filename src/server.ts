@@ -234,7 +234,7 @@ async function main(): Promise<void> {
       response.setHeader("Cross-Origin-Resource-Policy", "same-origin");
     }
     try {
-      if (request.method === "GET" && pathname === "/health") {
+      if ((request.method === "GET" || request.method === "HEAD") && pathname === "/health") {
         sendJson(response, 200, { status: "ok" });
         return;
       }
