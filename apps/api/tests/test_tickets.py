@@ -301,3 +301,55 @@ async def test_dispatcher_assigns_new_ticket(
 
     assert saved_ticket is not None
     assert saved_ticket.status == "assigned"
+
+
+@pytest.mark.anyio
+async def test_technician_starts_assigned_ticket(
+    api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session, session.begin():
+        organization = Organization(identifier="execution-org", name="Execution Org")
+        technician = User(
+            oidc_subject="execution-technician",
+            email="technician@example.test",
+            display_name="Execution Technician",
+        )
+        session.add_all([organization, technician])
+        await session.flush()
+        membership = Membership(
+            organization_id=organization.id,
+            user_id=technician.id,
+            role=Role.TECHNICIAN,
+        )
+        ticket = Ticket(
+            organization_id=organization.id,
+            created_by_user_id=technician.id,
+            title="Start this ticket",
+            status="assigned",
+        )
+        session.add_all([membership, ticket])
+        await session.flush()
+        context = TenantContext(
+            organization_id=organization.id,
+            user_id=technician.id,
+            membership_id=membership.id,
+            role=Role.TECHNICIAN,
+            capabilities=capabilities_for_role(Role.TECHNICIAN),
+        )
+        ticket_id = ticket.id
+
+    client, set_context = api_client
+    set_context(context)
+    response = await client.patch(
+        f"/api/v1/tickets/{ticket_id}/status", json={"status": "in_progress"}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "in_progress"
+
+    async with session_factory() as session:
+        saved_ticket = await session.get(Ticket, ticket_id)
+
+    assert saved_ticket is not None
+    assert saved_ticket.status == "in_progress"

@@ -29,7 +29,7 @@ class TicketCreate(BaseModel):
 
 
 class TicketStatusUpdate(BaseModel):
-    status: Literal["assigned"]
+    status: Literal["assigned", "in_progress"]
 
 
 class TicketResponse(BaseModel):
@@ -81,7 +81,12 @@ async def update_tenant_ticket_status(
     session: SessionDependency,
     context: TenantDependency,
 ) -> TicketResponse:
-    require_capability(context, Capability.WORK_ORDER_DISPATCH)
+    capability = (
+        Capability.WORK_ORDER_DISPATCH
+        if body.status == "assigned"
+        else Capability.WORK_ORDER_EXECUTE
+    )
+    require_capability(context, capability)
     ticket = await get_ticket(session, context=context, ticket_id=ticket_id)
     ticket.status = body.status
     await session.commit()
