@@ -292,6 +292,16 @@ async function main(): Promise<void> {
         sendJson(response, 201, photo);
         return;
       }
+      if (pathname === "/api/photos") {
+        response.setHeader("Allow", "POST");
+        sendJson(response, 405, {
+          error: {
+            code: "method_not_allowed",
+            message: `Method ${request.method} is not allowed for /api/photos`,
+          },
+        });
+        return;
+      }
       const photoMatch = pathname.match(/^\/api\/photos\/([^/]+)$/);
       if (request.method === "GET" && photoMatch) {
         const id = safeId(photoMatch[1]);
