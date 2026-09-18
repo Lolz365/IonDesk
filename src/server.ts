@@ -385,7 +385,9 @@ async function main(): Promise<void> {
         }
         if (!Array.isArray(body.signals)) throw new Error("signals must be an array");
         body.signals.forEach((signal, index) => {
-          if (!signal || typeof signal !== "object" || Array.isArray(signal)) return;
+          if (!signal || typeof signal !== "object" || Array.isArray(signal)) {
+            throw new Error(`signals[${index}] must be an object`);
+          }
           for (const field of Object.keys(signal)) {
             if (field !== "label" && field !== "confidence") {
               throw new Error(`Unsupported signals[${index}] field: ${field}`);
