@@ -261,6 +261,9 @@ async function main(): Promise<void> {
       }
       if (request.method === "POST" && pathname === "/api/tickets") {
         const body = await readJson(request);
+        if ("description" in body && typeof body.description !== "string") {
+          throw new Error("description must be a string");
+        }
         if ("photoIds" in body && !Array.isArray(body.photoIds)) throw new Error("photoIds must be an array");
         const ticket = await createAndSaveTicketWithPhotos(repository, photoStorage, {
           id: randomUUID(),

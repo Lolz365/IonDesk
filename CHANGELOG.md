@@ -4,6 +4,8 @@ All notable changes to VisualOps will be documented here.
 
 ## Unreleased
 
+- Fixed ticket creation to reject non-string descriptions with a stable
+  validation error instead of silently discarding them.
 - Fixed oversized ticket JSON requests to return a stable 413
   `payload_too_large` error.
 - Fixed ticket creation to reject non-string photo IDs with a stable validation
