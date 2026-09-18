@@ -64,3 +64,24 @@ test("POST /health returns a method-not-allowed JSON error", async () => {
     await rm(dataDir, { recursive: true, force: true });
   }
 });
+
+test("DELETE /health returns allowed methods with its method-not-allowed JSON error", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "visualops-health-method-"));
+  let server: RunningServer | undefined;
+  try {
+    server = await startServer(dataDir);
+    const response = await fetch(`${server.baseUrl}/health`, { method: "DELETE" });
+
+    assert.equal(response.status, 405);
+    assert.equal(response.headers.get("allow"), "GET");
+    assert.deepEqual(await response.json(), {
+      error: {
+        code: "method_not_allowed",
+        message: "Method DELETE is not allowed for /health",
+      },
+    });
+  } finally {
+    if (server) await stopServer(server.process);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});

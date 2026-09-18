@@ -230,6 +230,7 @@ async function main(): Promise<void> {
         return;
       }
       if (pathname === "/health") {
+        response.setHeader("Allow", "GET");
         sendJson(response, 405, {
           error: {
             code: "method_not_allowed",
