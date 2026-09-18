@@ -4,6 +4,8 @@ All notable changes to VisualOps will be documented here.
 
 ## Unreleased
 
+- Fixed oversized ticket JSON requests to return a stable 413
+  `payload_too_large` error.
 - Fixed ticket creation to reject non-string photo IDs with a stable validation
   error instead of exposing an internal type error.
 - Added the Phase 3 identity boundary: validated OIDC JWTs, tenant membership

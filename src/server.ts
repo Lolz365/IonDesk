@@ -150,7 +150,9 @@ async function readJson(request: IncomingMessage): Promise<Record<string, unknow
   for await (const chunk of request) {
     const buffer = Buffer.from(chunk);
     size += buffer.length;
-    if (size > 1024 * 1024) throw new Error("JSON body must not exceed 1 MiB");
+    if (size > 1024 * 1024) {
+      throw new HttpError(413, "payload_too_large", "JSON body must not exceed 1 MiB");
+    }
     chunks.push(buffer);
   }
   try {

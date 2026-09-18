@@ -212,6 +212,30 @@ test("rejects non-string photo IDs when creating a ticket", async () => {
   }
 });
 
+test("rejects oversized ticket JSON with a payload-too-large error", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
+  let server: RunningServer | undefined;
+  try {
+    server = await startServer(dataDir);
+    const response = await fetch(`${server.baseUrl}/api/tickets`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title: "Inspect pipe", description: "x".repeat(1024 * 1024) }),
+    });
+
+    assert.equal(response.status, 413);
+    assert.deepEqual(await response.json(), {
+      error: {
+        code: "payload_too_large",
+        message: "JSON body must not exceed 1 MiB",
+      },
+    });
+  } finally {
+    if (server) await stopServer(server.process);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("lists a bounded ticket page with a continuation cursor", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
   let server: RunningServer | undefined;
