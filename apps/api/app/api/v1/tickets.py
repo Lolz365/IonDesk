@@ -70,6 +70,18 @@ async def list_tenant_tickets(
                 }
             ]
         )
+    status_values = request.query_params.getlist("status")
+    if len(status_values) > 1:
+        raise RequestValidationError(
+            [
+                {
+                    "type": "value_error",
+                    "loc": ("query", "status"),
+                    "msg": "Value error, status must be provided once",
+                    "input": status_values,
+                }
+            ]
+        )
     require_capability(context, Capability.WORK_ORDER_READ)
     tickets = await list_tickets(
         session, context=context, limit=limit, status=ticket_status

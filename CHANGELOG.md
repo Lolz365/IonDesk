@@ -4,6 +4,7 @@ All notable changes to VisualOps will be documented here.
 
 ## Unreleased
 
+- Fixed ticket-list requests to reject repeated `status` query parameters with a stable validation error.
 - Prevented API-key credentials from minting additional API keys.
 - Prevented caching of API-key creation responses that contain one-time secrets.
 - Added `Cross-Origin-Resource-Policy: same-origin` to every API response.

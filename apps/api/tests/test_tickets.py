@@ -349,6 +349,27 @@ async def test_ticket_list_rejects_duplicate_limit_query_parameters(
 
 
 @pytest.mark.anyio
+async def test_ticket_list_rejects_duplicate_status_query_parameters(
+    api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
+) -> None:
+    client, set_context = api_client
+    set_context(
+        TenantContext(
+            organization_id=uuid.uuid4(),
+            user_id=uuid.uuid4(),
+            membership_id=uuid.uuid4(),
+            role=Role.OWNER,
+            capabilities=capabilities_for_role(Role.OWNER),
+        )
+    )
+
+    response = await client.get("/api/v1/tickets?status=new&status=assigned")
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
+
+
+@pytest.mark.anyio
 async def test_owner_creates_tenant_scoped_ticket_with_non_empty_title(
     api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
     session_factory: async_sessionmaker[AsyncSession],
