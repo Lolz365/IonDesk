@@ -36,10 +36,35 @@ def _create_request_hash(title: str) -> str:
     return hashlib.sha256(request.encode()).hexdigest()
 
 
+def _transition_request_hash(ticket_id: uuid.UUID, status: str) -> str:
+    request = json.dumps(
+        {
+            "operation": "ticket.status_transition",
+            "status": status,
+            "ticket_id": str(ticket_id),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(request.encode()).hexdigest()
+
+
 def _stored_response(record: IdempotencyRecord, request_hash: str) -> dict[str, object]:
     if (
         record.request_hash != request_hash
         or record.response_status != 201
+        or record.response_body is None
+    ):
+        raise TransactionConflict
+    return record.response_body
+
+
+def _stored_transition_response(
+    record: IdempotencyRecord, request_hash: str
+) -> dict[str, object]:
+    if (
+        record.request_hash != request_hash
+        or record.response_status != 200
         or record.response_body is None
     ):
         raise TransactionConflict
@@ -199,46 +224,98 @@ async def transition_ticket(
     correlation_id: uuid.UUID,
     source_ip: str | None,
     user_agent: str | None,
-) -> Ticket:
-    ticket = await get_ticket(session, context=context, ticket_id=ticket_id)
-    previous_status = ticket.status
-    next_status = {
-        "new": "assigned",
-        "assigned": "in_progress",
-        "in_progress": "closed",
-    }.get(previous_status)
-    if status != next_status:
-        raise InvalidTicketTransition
-    ticket.status = status
-    before: dict[str, object] = {"status": previous_status}
-    after: dict[str, object] = {"status": status}
-    record_audit_event(
-        session,
-        context=context,
-        object_type="ticket",
-        object_id=ticket.id,
-        action="ticket.status_changed",
-        before=before,
-        after=after,
-        correlation_id=correlation_id,
-        source_ip=source_ip,
-        user_agent=user_agent,
-    )
-    enqueue_outbox_event(
-        session,
-        organization_id=context.organization_id,
-        aggregate_type="ticket",
-        aggregate_id=ticket.id,
-        event_type="ticket.status_changed",
-        payload={
-            "ticket_id": str(ticket.id),
-            "before": before,
-            "after": after,
-        },
-        idempotency_key=(
-            f"ticket.status_changed:{ticket.id}:{previous_status}:{status}:"
-            f"{correlation_id}"
-        ),
-    )
-    await session.flush()
-    return ticket
+    idempotency_key: str | None = None,
+) -> Ticket | dict[str, object]:
+    request_hash = _transition_request_hash(ticket_id, status)
+    try:
+        async with session.begin():
+            idempotency_record = None
+            if idempotency_key is not None:
+                idempotency_record = await _find_idempotency_record(
+                    session,
+                    organization_id=context.organization_id,
+                    key=idempotency_key,
+                )
+                if idempotency_record is not None:
+                    expires_at = idempotency_record.expires_at
+                    if expires_at.tzinfo is None:
+                        expires_at = expires_at.replace(tzinfo=UTC)
+                    if expires_at > datetime.now(UTC):
+                        return _stored_transition_response(
+                            idempotency_record, request_hash
+                        )
+                    await session.delete(idempotency_record)
+                    await session.flush()
+
+                idempotency_record = IdempotencyRecord(
+                    organization_id=context.organization_id,
+                    key=idempotency_key,
+                    request_hash=request_hash,
+                    response_status=None,
+                    response_body=None,
+                    expires_at=datetime.now(UTC) + IDEMPOTENCY_TTL,
+                )
+                session.add(idempotency_record)
+                await session.flush()
+
+            ticket = await get_ticket(session, context=context, ticket_id=ticket_id)
+            previous_status = ticket.status
+            next_status = {
+                "new": "assigned",
+                "assigned": "in_progress",
+                "in_progress": "closed",
+            }.get(previous_status)
+            if status != next_status:
+                raise InvalidTicketTransition
+            ticket.status = status
+            before: dict[str, object] = {"status": previous_status}
+            after: dict[str, object] = {"status": status}
+            record_audit_event(
+                session,
+                context=context,
+                object_type="ticket",
+                object_id=ticket.id,
+                action="ticket.status_changed",
+                before=before,
+                after=after,
+                correlation_id=correlation_id,
+                source_ip=source_ip,
+                user_agent=user_agent,
+            )
+            enqueue_outbox_event(
+                session,
+                organization_id=context.organization_id,
+                aggregate_type="ticket",
+                aggregate_id=ticket.id,
+                event_type="ticket.status_changed",
+                payload={
+                    "ticket_id": str(ticket.id),
+                    "before": before,
+                    "after": after,
+                },
+                idempotency_key=(
+                    f"ticket.status_changed:{ticket.id}:{previous_status}:{status}:"
+                    f"{correlation_id}"
+                ),
+            )
+            await session.flush()
+            if idempotency_record is not None:
+                idempotency_record.response_status = 200
+                idempotency_record.response_body = {
+                    "id": str(ticket.id),
+                    "organization_id": str(ticket.organization_id),
+                    "title": ticket.title,
+                    "status": ticket.status,
+                }
+        return ticket
+    except IntegrityError as error:
+        if idempotency_key is not None:
+            async with session.begin():
+                existing_record = await _find_idempotency_record(
+                    session,
+                    organization_id=context.organization_id,
+                    key=idempotency_key,
+                )
+                if existing_record is not None:
+                    return _stored_transition_response(existing_record, request_hash)
+        raise TransactionConflict from error

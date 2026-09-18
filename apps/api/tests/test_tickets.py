@@ -777,6 +777,77 @@ async def test_dispatcher_assigns_new_ticket(
 
 
 @pytest.mark.anyio
+async def test_ticket_status_transition_replays_idempotent_request_once(
+    api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session, session.begin():
+        organization = Organization(
+            identifier="status-retry-org", name="Status Retry Org"
+        )
+        dispatcher = User(
+            oidc_subject="status-retry-dispatcher",
+            email="status-retry-dispatcher@example.test",
+            display_name="Status Retry Dispatcher",
+        )
+        session.add_all([organization, dispatcher])
+        await session.flush()
+        membership = Membership(
+            organization_id=organization.id,
+            user_id=dispatcher.id,
+            role=Role.DISPATCHER,
+        )
+        ticket = Ticket(
+            organization_id=organization.id,
+            created_by_user_id=dispatcher.id,
+            title="Assign exactly once",
+        )
+        session.add_all([membership, ticket])
+        await session.flush()
+        context = TenantContext(
+            organization_id=organization.id,
+            user_id=dispatcher.id,
+            membership_id=membership.id,
+            role=Role.DISPATCHER,
+            capabilities=capabilities_for_role(Role.DISPATCHER),
+        )
+        ticket_id = ticket.id
+
+    client, set_context = api_client
+    set_context(context)
+    headers = {"Idempotency-Key": "status-transition-retry-1"}
+    first = await client.patch(
+        f"/api/v1/tickets/{ticket_id}/status",
+        headers=headers,
+        json={"status": "assigned"},
+    )
+    replay = await client.patch(
+        f"/api/v1/tickets/{ticket_id}/status",
+        headers=headers,
+        json={"status": "assigned"},
+    )
+
+    assert first.status_code == 200
+    assert replay.status_code == 200
+    assert replay.json() == first.json()
+
+    async with session_factory() as session:
+        audit_count = await session.scalar(
+            select(func.count()).select_from(AuditEvent)
+        )
+        outbox_count = await session.scalar(
+            select(func.count()).select_from(OutboxEvent)
+        )
+        idempotency_count = await session.scalar(
+            select(func.count()).select_from(IdempotencyRecord)
+        )
+
+    assert audit_count == 1
+    assert outbox_count == 1
+    assert idempotency_count == 1
+
+
+@pytest.mark.anyio
 async def test_technician_starts_assigned_ticket(
     api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
     session_factory: async_sessionmaker[AsyncSession],

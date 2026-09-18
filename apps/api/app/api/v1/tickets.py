@@ -153,6 +153,15 @@ async def update_tenant_ticket_status(
     request: Request,
     session: SessionDependency,
     context: TenantDependency,
+    idempotency_key: Annotated[
+        str | None,
+        Header(
+            alias="Idempotency-Key",
+            min_length=1,
+            max_length=200,
+            pattern=r"\S",
+        ),
+    ] = None,
 ) -> TicketResponse:
     capability = {
         "assigned": Capability.WORK_ORDER_DISPATCH,
@@ -168,6 +177,6 @@ async def update_tenant_ticket_status(
         correlation_id=uuid.UUID(request.state.request_id),
         source_ip=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
+        idempotency_key=idempotency_key,
     )
-    await session.commit()
     return TicketResponse.model_validate(ticket)
