@@ -282,6 +282,15 @@ async function main(): Promise<void> {
         return;
       }
       if (request.method === "GET" && pathname === "/api/tickets") {
+        for (const parameter of url.searchParams.keys()) {
+          if (parameter !== "limit" && parameter !== "cursor") {
+            throw new HttpError(
+              400,
+              "validation_error",
+              `Unsupported query parameter: ${parameter}`,
+            );
+          }
+        }
         for (const parameter of ["limit", "cursor"]) {
           if (url.searchParams.getAll(parameter).length > 1) {
             throw new HttpError(400, "validation_error", `${parameter} must not be repeated`);

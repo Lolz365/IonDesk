@@ -538,6 +538,26 @@ test("rejects duplicate ticket pagination query parameters", async () => {
   }
 });
 
+test("rejects unsupported ticket list query parameters", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
+  let server: RunningServer | undefined;
+  try {
+    server = await startServer(dataDir);
+    const response = await fetch(`${server.baseUrl}/api/tickets?status=open`);
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), {
+      error: {
+        code: "validation_error",
+        message: "Unsupported query parameter: status",
+      },
+    });
+  } finally {
+    if (server) await stopServer(server.process);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("rejects a ticket cursor without an explicit page limit", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
   let server: RunningServer | undefined;
