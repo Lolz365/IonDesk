@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Header, Request
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -56,6 +56,9 @@ async def update_current_organization(
     request: Request,
     session: SessionDependency,
     context: TenantDependency,
+    idempotency_key: Annotated[
+        str | None, Header(alias="Idempotency-Key", min_length=1, max_length=200)
+    ] = None,
 ) -> OrganizationResponse:
     require_capability(context, Capability.ORGANIZATION_UPDATE)
     request_id = uuid.UUID(request.state.request_id)
@@ -66,5 +69,6 @@ async def update_current_organization(
         correlation_id=request_id,
         source_ip=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
+        idempotency_key=idempotency_key,
     )
     return OrganizationResponse.model_validate(organization)

@@ -8,7 +8,14 @@ from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models import AuditEvent, Membership, Organization, OutboxEvent, User
+from app.models import (
+    AuditEvent,
+    IdempotencyRecord,
+    Membership,
+    Organization,
+    OutboxEvent,
+    User,
+)
 from app.services.authorization import Role, TenantContext, capabilities_for_role
 
 
@@ -107,3 +114,39 @@ async def test_mutation_rolls_back_change_and_audit_when_outbox_insert_fails(
     assert persisted is not None and persisted.name == "First"
     assert audit_count == 1
     assert outbox_count == 1
+
+
+@pytest.mark.anyio
+async def test_mutation_retry_replays_response_without_duplicate_side_effects(
+    api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    _, context = await seed_owner(session_factory)
+    client, set_context = api_client
+    set_context(context)
+    headers = {"idempotency-key": "rename-retry-1"}
+
+    first = await client.patch(
+        "/api/v1/organizations/current",
+        headers=headers,
+        json={"name": "After"},
+    )
+    second = await client.patch(
+        "/api/v1/organizations/current",
+        headers=headers,
+        json={"name": "After"},
+    )
+
+    assert first.status_code == second.status_code == 200
+    assert second.json() == first.json()
+    async with session_factory() as session:
+        audit_count = await session.scalar(select(func.count()).select_from(AuditEvent))
+        outbox_count = await session.scalar(
+            select(func.count()).select_from(OutboxEvent)
+        )
+        idempotency_count = await session.scalar(
+            select(func.count()).select_from(IdempotencyRecord)
+        )
+    assert audit_count == 1
+    assert outbox_count == 1
+    assert idempotency_count == 1
