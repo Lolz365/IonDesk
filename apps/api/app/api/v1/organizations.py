@@ -57,7 +57,13 @@ async def update_current_organization(
     session: SessionDependency,
     context: TenantDependency,
     idempotency_key: Annotated[
-        str | None, Header(alias="Idempotency-Key", min_length=1, max_length=200)
+        str | None,
+        Header(
+            alias="Idempotency-Key",
+            min_length=1,
+            max_length=200,
+            pattern=r"\S",
+        ),
     ] = None,
 ) -> OrganizationResponse:
     require_capability(context, Capability.ORGANIZATION_UPDATE)
