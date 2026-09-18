@@ -225,6 +225,15 @@ async function main(): Promise<void> {
         sendJson(response, 200, { status: "ok" });
         return;
       }
+      if (pathname === "/health") {
+        sendJson(response, 405, {
+          error: {
+            code: "method_not_allowed",
+            message: `Method ${request.method} is not allowed for /health`,
+          },
+        });
+        return;
+      }
       if (request.method === "GET" && pathname === "/") {
         send(response, 200, "text/html; charset=utf-8", UI);
         return;
