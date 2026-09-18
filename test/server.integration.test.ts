@@ -826,6 +826,45 @@ test("rejects unsupported fields when analyzing a ticket photo", async () => {
   }
 });
 
+test("rejects unsupported fields in ticket photo analysis signals", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
+  let server: RunningServer | undefined;
+  try {
+    server = await startServer(dataDir);
+    const uploadResponse = await fetch(`${server.baseUrl}/api/photos`, {
+      method: "POST",
+      headers: { "content-type": "image/png" },
+      body: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    });
+    const photo = await uploadResponse.json() as { id: string };
+    const ticketResponse = await fetch(`${server.baseUrl}/api/tickets`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title: "Inspect pipe", photoIds: [photo.id] }),
+    });
+    const ticket = await ticketResponse.json() as { id: string };
+
+    const response = await fetch(`${server.baseUrl}/api/tickets/${ticket.id}/photos/${photo.id}/analyze`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        signals: [{ label: "corrosion", confidence: 0.9, status: "ready" }],
+      }),
+    });
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), {
+      error: {
+        code: "validation_error",
+        message: "Unsupported signals[0] field: status",
+      },
+    });
+  } finally {
+    if (server) await stopServer(server.process);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("persists ticket state, photo metadata, and image bytes across restart", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
   let server: RunningServer | undefined;

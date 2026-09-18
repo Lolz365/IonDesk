@@ -384,6 +384,14 @@ async function main(): Promise<void> {
           if (field !== "signals") throw new Error(`Unsupported analysis field: ${field}`);
         }
         if (!Array.isArray(body.signals)) throw new Error("signals must be an array");
+        body.signals.forEach((signal, index) => {
+          if (!signal || typeof signal !== "object" || Array.isArray(signal)) return;
+          for (const field of Object.keys(signal)) {
+            if (field !== "label" && field !== "confidence") {
+              throw new Error(`Unsupported signals[${index}] field: ${field}`);
+            }
+          }
+        });
         const signals = body.signals as PhotoSignal[];
         const draft = await analyzeTicketPhoto(repository, {
           async analyzePhoto() { return signals; },
