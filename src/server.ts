@@ -225,6 +225,9 @@ async function main(): Promise<void> {
     response.setHeader("Referrer-Policy", "no-referrer");
     const url = new URL(request.url ?? "/", "http://localhost");
     const pathname = url.pathname;
+    if (pathname.startsWith("/api/")) {
+      response.setHeader("Cache-Control", "no-store");
+    }
     try {
       if (request.method === "GET" && pathname === "/health") {
         sendJson(response, 200, { status: "ok" });

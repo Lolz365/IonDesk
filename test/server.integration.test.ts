@@ -128,6 +128,37 @@ test("allows the inline UI assets in the root Content-Security-Policy", async ()
   }
 });
 
+test("sets no-store on API responses without affecting the public UI or health", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
+  let server: RunningServer | undefined;
+  try {
+    server = await startServer(dataDir);
+    const ticketResponse = await fetch(`${server.baseUrl}/api/tickets`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title: "Inspect cache headers" }),
+    });
+    const photoUploadResponse = await fetch(`${server.baseUrl}/api/photos`, {
+      method: "POST",
+      headers: { "content-type": "image/png" },
+      body: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    });
+    const photo = await photoUploadResponse.json() as { id: string };
+    const photoDownloadResponse = await fetch(`${server.baseUrl}/api/photos/${photo.id}`);
+    const errorResponse = await fetch(`${server.baseUrl}/api/tickets/missing`);
+
+    for (const response of [ticketResponse, photoUploadResponse, photoDownloadResponse, errorResponse]) {
+      assert.equal(response.headers.get("cache-control"), "no-store");
+    }
+
+    assert.equal((await fetch(server.baseUrl)).headers.get("cache-control"), null);
+    assert.equal((await fetch(`${server.baseUrl}/health`)).headers.get("cache-control"), null);
+  } finally {
+    if (server) await stopServer(server.process);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("serves a browser workflow wired to every ticket operation", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
   let server: RunningServer | undefined;
