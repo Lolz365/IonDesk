@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import uuid
 from collections.abc import Callable
 
@@ -82,6 +84,40 @@ async def test_reference_mutation_writes_one_audit_and_one_outbox_event(
     assert audit_events[0].after == {"name": "After"}
     assert audit_events[0].correlation_id == uuid.UUID(request_id)
     assert outbox_events[0].idempotency_key == f"organization.renamed:{request_id}"
+
+
+@pytest.mark.anyio
+async def test_mutation_normalizes_name_before_response_audit_and_idempotency_hash(
+    api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    organization, context = await seed_owner(session_factory)
+    client, set_context = api_client
+    set_context(context)
+
+    response = await client.patch(
+        "/api/v1/organizations/current",
+        headers={"idempotency-key": "normalized-name-1"},
+        json={"name": "  After  "},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["name"] == "After"
+    async with session_factory() as session:
+        persisted = await session.get(Organization, organization.id)
+        audit_event = await session.scalar(select(AuditEvent))
+        idempotency_record = await session.scalar(select(IdempotencyRecord))
+    expected_request = json.dumps(
+        {"operation": "organization.rename", "name": "After"},
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    assert persisted is not None and persisted.name == "After"
+    assert audit_event is not None and audit_event.after == {"name": "After"}
+    assert idempotency_record is not None
+    assert idempotency_record.request_hash == hashlib.sha256(
+        expected_request.encode()
+    ).hexdigest()
 
 
 @pytest.mark.anyio

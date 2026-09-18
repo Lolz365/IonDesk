@@ -4,7 +4,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Request
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, StringConstraints
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
@@ -34,7 +34,10 @@ class OrganizationResponse(BaseModel):
 
 
 class OrganizationUpdate(BaseModel):
-    name: str = Field(min_length=1, max_length=200, pattern=r"\S")
+    name: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=1, max_length=200),
+    ]
 
 
 @router.get("/{organization_id}", response_model=OrganizationResponse)
