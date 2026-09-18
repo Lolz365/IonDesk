@@ -94,6 +94,20 @@ test("sends baseline security headers for health responses", async () => {
   }
 });
 
+test("isolates health responses from cross-origin opener contexts", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
+  let server: RunningServer | undefined;
+  try {
+    server = await startServer(dataDir);
+    const response = await fetch(`${server.baseUrl}/health`);
+
+    assert.equal(response.headers.get("cross-origin-opener-policy"), "same-origin");
+  } finally {
+    if (server) await stopServer(server.process);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("sends a restrictive Content-Security-Policy for health responses", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
   let server: RunningServer | undefined;
