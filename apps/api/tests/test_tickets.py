@@ -13,6 +13,64 @@ from app.services.authorization import Role, TenantContext, capabilities_for_rol
 
 
 @pytest.mark.anyio
+async def test_owner_gets_own_ticket_but_not_another_organizations_ticket(
+    api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session, session.begin():
+        organization = Organization(identifier="retrieval-org", name="Retrieval Org")
+        other_organization = Organization(identifier="hidden-org", name="Hidden Org")
+        owner = User(
+            oidc_subject="retrieval-owner",
+            email="retrieval-owner@example.test",
+            display_name="Retrieval Owner",
+        )
+        session.add_all([organization, other_organization, owner])
+        await session.flush()
+        membership = Membership(
+            organization_id=organization.id,
+            user_id=owner.id,
+            role=Role.OWNER,
+        )
+        visible_ticket = Ticket(
+            organization_id=organization.id,
+            created_by_user_id=owner.id,
+            title="Visible ticket detail",
+        )
+        hidden_ticket = Ticket(
+            organization_id=other_organization.id,
+            created_by_user_id=owner.id,
+            title="Secret ticket detail",
+        )
+        session.add_all([membership, visible_ticket, hidden_ticket])
+        await session.flush()
+        owner_context = TenantContext(
+            organization_id=organization.id,
+            user_id=owner.id,
+            membership_id=membership.id,
+            role=Role.OWNER,
+            capabilities=capabilities_for_role(Role.OWNER),
+        )
+        visible_ticket_id = visible_ticket.id
+        hidden_ticket_id = hidden_ticket.id
+
+    client, set_context = api_client
+    set_context(owner_context)
+    visible = await client.get(f"/api/v1/tickets/{visible_ticket_id}")
+    hidden = await client.get(f"/api/v1/tickets/{hidden_ticket_id}")
+
+    assert visible.status_code == 200
+    assert visible.json() == {
+        "id": str(visible_ticket_id),
+        "organization_id": str(organization.id),
+        "title": "Visible ticket detail",
+    }
+    assert hidden.status_code == 404
+    assert hidden.json()["error"]["code"] == "ticket_not_found"
+    assert "Secret ticket detail" not in hidden.text
+
+
+@pytest.mark.anyio
 async def test_owner_lists_only_tickets_from_their_organization(
     api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
     session_factory: async_sessionmaker[AsyncSession],
