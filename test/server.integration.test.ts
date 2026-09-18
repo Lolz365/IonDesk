@@ -609,6 +609,40 @@ test("filters the ticket list by workflow status", async () => {
   }
 });
 
+test("continues a filtered ticket page after the cursor ticket changes status", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
+  let server: RunningServer | undefined;
+  try {
+    server = await startServer(dataDir);
+    const tickets: Array<Record<string, unknown>> = [];
+    for (const title of ["First", "Second", "Third"]) {
+      const response = await fetch(`${server.baseUrl}/api/tickets`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title }),
+      });
+      tickets.push(await response.json() as Record<string, unknown>);
+    }
+    const firstPageResponse = await fetch(
+      `${server.baseUrl}/api/tickets?limit=1&status=open`,
+    );
+    const firstPage = await firstPageResponse.json() as { nextCursor: string };
+    await fetch(`${server.baseUrl}/api/tickets/${firstPage.nextCursor}/resolve`, {
+      method: "POST",
+    });
+
+    const response = await fetch(
+      `${server.baseUrl}/api/tickets?limit=2&cursor=${encodeURIComponent(firstPage.nextCursor)}&status=open`,
+    );
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { tickets: tickets.slice(1) });
+  } finally {
+    if (server) await stopServer(server.process);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("rejects duplicate ticket pagination query parameters", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
   let server: RunningServer | undefined;

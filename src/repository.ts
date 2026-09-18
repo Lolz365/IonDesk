@@ -85,9 +85,7 @@ export class InMemoryTicketRepository implements TicketRepository {
       throw new Error("cursor is required");
     }
 
-    const tickets = [...this.#tickets.values()].filter(
-      (ticket) => input.status === undefined || ticket.status === input.status,
-    );
+    const tickets = [...this.#tickets.values()];
     let startIndex = 0;
     if (input.cursor !== undefined) {
       const cursorIndex = tickets.findIndex(({ id }) => id === input.cursor);
@@ -97,10 +95,13 @@ export class InMemoryTicketRepository implements TicketRepository {
       startIndex = cursorIndex + 1;
     }
 
-    const pageTickets = Object.freeze(
-      tickets.slice(startIndex, startIndex + input.limit),
+    const matchingTickets = tickets.slice(startIndex).filter(
+      (ticket) => input.status === undefined || ticket.status === input.status,
     );
-    const hasNextPage = startIndex + pageTickets.length < tickets.length;
+    const pageTickets = Object.freeze(
+      matchingTickets.slice(0, input.limit),
+    );
+    const hasNextPage = pageTickets.length < matchingTickets.length;
     return Object.freeze({
       tickets: pageTickets,
       ...(hasNextPage
