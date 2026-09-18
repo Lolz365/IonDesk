@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -66,6 +66,7 @@ class APIKeyRevokedResponse(BaseModel):
 async def issue_api_key(
     body: APIKeyCreate,
     request: Request,
+    response: Response,
     session: SessionDependency,
     context: TenantDependency,
 ) -> APIKeyCreated:
@@ -84,6 +85,7 @@ async def issue_api_key(
         user_agent=request.headers.get("user-agent"),
     )
     await session.commit()
+    response.headers["Cache-Control"] = "no-store"
     return APIKeyCreated(
         id=issued.id,
         name=issued.name,
