@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import func, select, text
+from sqlalchemy import select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -14,7 +14,6 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from app.db.base import Base
 from app.main import create_app
 from app.models import AuditEvent, Membership, Organization, OutboxEvent, User
 from app.services.authorization import (
@@ -37,23 +36,16 @@ async def postgres_session_factory() -> AsyncIterator[async_sessionmaker[AsyncSe
     if url.drivername != "postgresql+asyncpg":
         pytest.skip("VISUALOPS_TEST_DATABASE_URL must use postgresql+asyncpg")
 
-    schema = f"test_{uuid.uuid4().hex}"
-    admin_engine = create_async_engine(database_url)
-    async with admin_engine.begin() as connection:
-        await connection.execute(text(f'CREATE SCHEMA "{schema}"'))
-    engine = create_async_engine(
-        database_url,
-        connect_args={"server_settings": {"search_path": schema}},
-    )
+    engine = create_async_engine(database_url)
     try:
-        async with engine.begin() as connection:
-            await connection.run_sync(Base.metadata.create_all)
+        async with engine.connect() as connection:
+            revision = await connection.scalar(
+                text("SELECT version_num FROM alembic_version")
+            )
+        assert revision == "0001_tenant_foundation"
         yield async_sessionmaker(engine, expire_on_commit=False)
     finally:
         await engine.dispose()
-        async with admin_engine.begin() as connection:
-            await connection.execute(text(f'DROP SCHEMA "{schema}" CASCADE'))
-        await admin_engine.dispose()
 
 
 @pytest.mark.anyio
@@ -105,9 +97,39 @@ async def test_postgresql_tenant_isolation_and_transactional_side_effects(
     assert guessed.status_code == 404
     assert renamed.status_code == 200
     async with postgres_session_factory() as session:
-        audit_count = await session.scalar(select(func.count()).select_from(AuditEvent))
-        outbox_count = await session.scalar(
-            select(func.count()).select_from(OutboxEvent)
+        audit_event = await session.scalar(
+            select(AuditEvent).where(AuditEvent.correlation_id == uuid.UUID(request_id))
         )
-    assert audit_count == 1
-    assert outbox_count == 1
+        outbox_event = await session.scalar(
+            select(OutboxEvent).where(
+                OutboxEvent.idempotency_key == f"organization.renamed:{request_id}"
+            )
+        )
+        transaction_ids = (
+            await session.execute(
+                text(
+                    "SELECT xmin::text FROM organizations WHERE id = :organization_id "
+                    "UNION ALL SELECT xmin::text FROM audit_events "
+                    "WHERE correlation_id = :correlation_id "
+                    "UNION ALL SELECT xmin::text FROM outbox_events "
+                    "WHERE idempotency_key = :idempotency_key"
+                ),
+                {
+                    "organization_id": org_a.id,
+                    "correlation_id": uuid.UUID(request_id),
+                    "idempotency_key": f"organization.renamed:{request_id}",
+                },
+            )
+        ).scalars().all()
+
+    assert audit_event is not None
+    assert audit_event.organization_id == org_a.id
+    assert audit_event.after == {"name": "After"}
+    assert outbox_event is not None
+    assert outbox_event.organization_id == org_a.id
+    assert outbox_event.payload == {
+        "organization_id": str(org_a.id),
+        "name": "After",
+    }
+    assert len(transaction_ids) == 3
+    assert len(set(transaction_ids)) == 1

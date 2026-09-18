@@ -4,10 +4,12 @@ import asyncio
 from logging.config import fileConfig
 
 from sqlalchemy import pool
+from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 from app.db.base import Base
+from app.db.migration_settings import MigrationSettings
 from app.models import (  # noqa: F401
     APIKey,
     AuditEvent,
@@ -17,7 +19,6 @@ from app.models import (  # noqa: F401
     OutboxEvent,
     User,
 )
-from app.settings import Settings
 
 config = context.config
 if config.config_file_name is not None:
@@ -27,7 +28,7 @@ target_metadata = Base.metadata
 
 
 def get_url() -> str:
-    return Settings().database_url
+    return MigrationSettings().database_url
 
 
 def run_migrations_offline() -> None:
@@ -42,7 +43,7 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
-def do_run_migrations(connection: object) -> None:
+def do_run_migrations(connection: Connection) -> None:
     context.configure(
         connection=connection, target_metadata=target_metadata, compare_type=True
     )

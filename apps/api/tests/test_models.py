@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from sqlalchemy import CheckConstraint, UniqueConstraint
+from typing import cast
+
+from sqlalchemy import CheckConstraint, DateTime, Table, UniqueConstraint
 
 from app.db.base import Base
 from app.models import Membership, Organization
@@ -19,7 +21,7 @@ def test_foundation_metadata_has_tenant_keys_constraints_and_indexes() -> None:
 
     assert expected_tables == set(Base.metadata.tables)
 
-    membership_constraints = Membership.__table__.constraints
+    membership_constraints = cast(Table, Membership.__table__).constraints
     assert any(isinstance(item, CheckConstraint) for item in membership_constraints)
     assert any(isinstance(item, UniqueConstraint) for item in membership_constraints)
 
@@ -27,7 +29,7 @@ def test_foundation_metadata_has_tenant_keys_constraints_and_indexes() -> None:
         table = Base.metadata.tables[table_name]
         assert "organization_id" in table.c
         assert table.c.organization_id.foreign_keys
-        assert table.c.created_at.type.timezone is True
+        assert cast(DateTime, table.c.created_at.type).timezone is True
         index_columns = {
             tuple(column.name for column in index.columns) for index in table.indexes
         }

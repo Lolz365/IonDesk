@@ -66,9 +66,9 @@ docker compose -f infra/compose/compose.staging.yml run --rm --no-deps api alemb
 Run `alembic downgrade base` only against a disposable database when rehearsing
 rollback; it removes all foundation tables. Never run concurrent migrations
 from API or worker replicas. Tests use a temporary SQLite database for the fast
-transaction suite. To exercise the marked PostgreSQL suite, point
-`VISUALOPS_TEST_DATABASE_URL` at a disposable PostgreSQL database; each test
-uses and removes its own uniquely named schema.
+transaction suite. To exercise the marked PostgreSQL suite, migrate a disposable
+PostgreSQL database with Alembic, then point `VISUALOPS_TEST_DATABASE_URL` at it.
+The proof checks the migration revision and tests the migrated schema directly.
 
 ## Legacy demo
 
