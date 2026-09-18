@@ -195,6 +195,22 @@ test("prevents cross-origin embedding of uploaded photo responses", async () => 
   }
 });
 
+test("restricts normal JSON API responses to same-origin consumers", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
+  let server: RunningServer | undefined;
+  try {
+    server = await startServer(dataDir);
+    const response = await fetch(`${server.baseUrl}/api/tickets`);
+
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get("content-type") ?? "", /^application\/json/);
+    assert.equal(response.headers.get("cross-origin-resource-policy"), "same-origin");
+  } finally {
+    if (server) await stopServer(server.process);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("serves a browser workflow wired to every ticket operation", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
   let server: RunningServer | undefined;

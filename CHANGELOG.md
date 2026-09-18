@@ -4,6 +4,7 @@ All notable changes to VisualOps will be documented here.
 
 ## Unreleased
 
+- Added `Cross-Origin-Resource-Policy: same-origin` to every API response.
 - Fixed ticket creation to reject non-string descriptions with a stable
   validation error instead of silently discarding them.
 - Fixed oversized ticket JSON requests to return a stable 413

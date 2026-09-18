@@ -228,6 +228,7 @@ async function main(): Promise<void> {
     const pathname = url.pathname;
     if (pathname.startsWith("/api/")) {
       response.setHeader("Cache-Control", "no-store");
+      response.setHeader("Cross-Origin-Resource-Policy", "same-origin");
     }
     try {
       if (request.method === "GET" && pathname === "/health") {
