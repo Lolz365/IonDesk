@@ -699,6 +699,76 @@ async def test_ticket_creation_rejects_duplicate_idempotency_key_headers_without
 
 
 @pytest.mark.anyio
+async def test_ticket_status_transition_rejects_duplicate_idempotency_key_headers_without_writes(
+    api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session, session.begin():
+        organization = Organization(
+            identifier="duplicate-status-idempotency-org",
+            name="Duplicate Status Idempotency Org",
+        )
+        dispatcher = User(
+            oidc_subject="duplicate-status-idempotency-dispatcher",
+            email="duplicate-status-idempotency-dispatcher@example.test",
+            display_name="Duplicate Status Idempotency Dispatcher",
+        )
+        session.add_all([organization, dispatcher])
+        await session.flush()
+        membership = Membership(
+            organization_id=organization.id,
+            user_id=dispatcher.id,
+            role=Role.DISPATCHER,
+        )
+        ticket = Ticket(
+            organization_id=organization.id,
+            created_by_user_id=dispatcher.id,
+            title="Do not assign this ticket",
+        )
+        session.add_all([membership, ticket])
+        await session.flush()
+        context = TenantContext(
+            organization_id=organization.id,
+            user_id=dispatcher.id,
+            membership_id=membership.id,
+            role=Role.DISPATCHER,
+            capabilities=capabilities_for_role(Role.DISPATCHER),
+        )
+        ticket_id = ticket.id
+
+    client, set_context = api_client
+    set_context(context)
+    response = await client.patch(
+        f"/api/v1/tickets/{ticket_id}/status",
+        headers=[
+            ("Idempotency-Key", "status-transition-1"),
+            ("Idempotency-Key", "status-transition-2"),
+        ],
+        json={"status": "assigned"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
+    async with session_factory() as session:
+        saved_ticket = await session.get(Ticket, ticket_id)
+        audit_count = await session.scalar(
+            select(func.count()).select_from(AuditEvent)
+        )
+        outbox_count = await session.scalar(
+            select(func.count()).select_from(OutboxEvent)
+        )
+        idempotency_count = await session.scalar(
+            select(func.count()).select_from(IdempotencyRecord)
+        )
+
+    assert saved_ticket is not None
+    assert saved_ticket.status == "new"
+    assert audit_count == 0
+    assert outbox_count == 0
+    assert idempotency_count == 0
+
+
+@pytest.mark.anyio
 async def test_dispatcher_assigns_new_ticket(
     api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
     session_factory: async_sessionmaker[AsyncSession],

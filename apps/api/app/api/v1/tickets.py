@@ -163,6 +163,18 @@ async def update_tenant_ticket_status(
         ),
     ] = None,
 ) -> TicketResponse:
+    idempotency_key_values = request.headers.getlist("idempotency-key")
+    if len(idempotency_key_values) > 1:
+        raise RequestValidationError(
+            [
+                {
+                    "type": "value_error",
+                    "loc": ("header", "Idempotency-Key"),
+                    "msg": "Value error, Idempotency-Key must be provided once",
+                    "input": idempotency_key_values,
+                }
+            ]
+        )
     capability = {
         "assigned": Capability.WORK_ORDER_DISPATCH,
         "in_progress": Capability.WORK_ORDER_EXECUTE,
