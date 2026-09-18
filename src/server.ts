@@ -282,6 +282,11 @@ async function main(): Promise<void> {
         return;
       }
       if (request.method === "GET" && pathname === "/api/tickets") {
+        for (const parameter of ["limit", "cursor"]) {
+          if (url.searchParams.getAll(parameter).length > 1) {
+            throw new HttpError(400, "validation_error", `${parameter} must not be repeated`);
+          }
+        }
         if (url.searchParams.has("cursor") && !url.searchParams.has("limit")) {
           throw new HttpError(400, "validation_error", "cursor requires an explicit limit");
         }
