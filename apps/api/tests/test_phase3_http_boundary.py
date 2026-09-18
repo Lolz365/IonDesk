@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -186,6 +187,40 @@ async def test_api_key_creation_response_disables_caching(
 
     assert response.status_code == 200
     assert response.headers["cache-control"] == "no-store"
+
+
+@pytest.mark.anyio
+async def test_api_key_creation_normalizes_naive_expiry_to_utc(
+    session_factory: async_sessionmaker[AsyncSession],
+    successful_probes: dict[str, Callable[[], Awaitable[None]]],
+) -> None:
+    organization = await seeded_org(session_factory)
+    app = create_app(
+        phase3_settings(),
+        probes=successful_probes,
+        session_factory=session_factory,
+        oidc_validator=AcceptOneToken(),
+        rate_limiter=DeterministicRateLimiter(),
+    )
+    headers = {
+        "authorization": "Bearer signed-and-verified",
+        "x-organization-id": str(organization.id),
+    }
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            "/api/v1/api-keys",
+            headers=headers,
+            json={
+                "name": "CMMS",
+                "scopes": [Capability.ORGANIZATION_READ],
+                "expires_at": "2099-01-01T00:00:00",
+            },
+        )
+
+    assert response.status_code == 200
+    assert datetime.fromisoformat(response.json()["expires_at"]).tzinfo is UTC
 
 
 @pytest.mark.anyio

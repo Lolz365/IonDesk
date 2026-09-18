@@ -52,6 +52,7 @@ class APIKeyCreate(BaseModel):
                 candidate = candidate.replace(tzinfo=UTC)
             if candidate <= datetime.now(UTC):
                 raise ValueError("expires_at must be in the future")
+            self.expires_at = candidate
         return self
 
 
