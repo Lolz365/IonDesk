@@ -328,6 +328,7 @@ async function main(): Promise<void> {
         const photo = await photoStorage.findById(id);
         const bytes = await photoStorage.readBytes(id);
         if (!photo || !bytes) throw new Error(`Photo with id "${id}" does not exist`);
+        response.setHeader("Cross-Origin-Resource-Policy", "same-origin");
         response.writeHead(200, { "content-type": photo.contentType, "content-length": bytes.length });
         response.end(bytes);
         return;

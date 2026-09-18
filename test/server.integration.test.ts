@@ -159,6 +159,28 @@ test("sets no-store on API responses without affecting the public UI or health",
   }
 });
 
+test("prevents cross-origin embedding of uploaded photo responses", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
+  let server: RunningServer | undefined;
+  try {
+    server = await startServer(dataDir);
+    const uploadResponse = await fetch(`${server.baseUrl}/api/photos`, {
+      method: "POST",
+      headers: { "content-type": "image/png" },
+      body: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    });
+    const photo = await uploadResponse.json() as { id: string };
+
+    const response = await fetch(`${server.baseUrl}/api/photos/${photo.id}`);
+
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("cross-origin-resource-policy"), "same-origin");
+  } finally {
+    if (server) await stopServer(server.process);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("serves a browser workflow wired to every ticket operation", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
   let server: RunningServer | undefined;
