@@ -226,6 +226,7 @@ async function main(): Promise<void> {
     response.setHeader("X-Frame-Options", "DENY");
     response.setHeader("Referrer-Policy", "no-referrer");
     response.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+    response.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
     const url = new URL(request.url ?? "/", "http://localhost");
     const pathname = url.pathname;
     if (pathname.startsWith("/api/")) {
