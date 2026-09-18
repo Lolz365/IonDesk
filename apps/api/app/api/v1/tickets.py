@@ -34,7 +34,7 @@ class TicketCreate(BaseModel):
             strip_whitespace=True,
             min_length=1,
             max_length=200,
-            pattern=r"^[^\x00]*$",
+            pattern=r"^[^\x00-\x1f\x7f]*$",
         ),
     ]
 
