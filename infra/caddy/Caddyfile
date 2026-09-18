@@ -1,0 +1,30 @@
+:8080 {
+	handle /edge-health {
+		respond "ok" 200
+	}
+
+	route {
+		basic_auth {
+			visualops {$EDGE_BASIC_AUTH_HASH}
+		}
+
+		header {
+			-Server
+			Referrer-Policy "no-referrer"
+			X-Content-Type-Options "nosniff"
+			X-Frame-Options "DENY"
+		}
+
+		handle /api/* {
+			reverse_proxy api:8000
+		}
+
+		handle /health/* {
+			reverse_proxy api:8000
+		}
+
+		handle {
+			reverse_proxy web:3000
+		}
+	}
+}

@@ -1,0 +1,148 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  legacy-demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26.9.0
+      - run: npm test
+
+  python-quality:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16.15-alpine3.24
+        env:
+          POSTGRES_DB: visualops_test
+          POSTGRES_USER: visualops_test
+          POSTGRES_PASSWORD: test-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U visualops_test -d visualops_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      VISUALOPS_TEST_DATABASE_URL: postgresql+asyncpg://visualops_test:test-only@127.0.0.1:5432/visualops_test
+    strategy:
+      matrix:
+        app: [api, worker]
+    defaults:
+      run:
+        working-directory: apps/${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: 0.8.15
+          enable-cache: true
+      - run: uv sync --frozen --all-groups
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy app
+      - run: uv run pytest -W error
+
+  openapi:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    env:
+      DATABASE_URL: postgresql+asyncpg://validation:validation@postgres/visualops
+      REDIS_URL: redis://:validation@redis:6379/0
+      OBJECT_STORAGE_ENDPOINT: http://minio:9000
+      OBJECT_STORAGE_ACCESS_KEY: validation
+      OBJECT_STORAGE_SECRET_KEY: validation
+      OBJECT_STORAGE_BUCKET: visualops-private
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: 0.8.15
+      - run: uv sync --frozen --all-groups
+      - name: Render initial migration as PostgreSQL SQL
+        run: uv run alembic upgrade head --sql > /tmp/visualops-migration.sql
+      - name: Validate generated OpenAPI 3.1 document
+        run: uv run python -c "from openapi_spec_validator import validate; from app.main import create_app; validate(create_app().openapi())"
+
+  web-quality:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26.9.0
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm audit --audit-level=high
+
+  platform-validation:
+    runs-on: ubuntu-latest
+    env:
+      POSTGRES_USER: visualops
+      POSTGRES_PASSWORD: validation-only
+      REDIS_PASSWORD: validation-only
+      MINIO_ROOT_USER: validation
+      MINIO_ROOT_PASSWORD: validation-only
+      DATABASE_URL: postgresql+asyncpg://visualops:validation-only@postgres:5432/visualops
+      REDIS_URL: redis://:validation-only@redis:6379/0
+      OBJECT_STORAGE_ACCESS_KEY: validation
+      OBJECT_STORAGE_SECRET_KEY: validation-only
+      BROKER_URL: redis://:validation-only@redis:6379/0
+      RESULT_BACKEND: redis://:validation-only@redis:6379/1
+      EDGE_BASIC_AUTH_HASH: validation-only
+    steps:
+      - uses: actions/checkout@v5
+      - run: docker compose -f infra/compose/compose.staging.yml config --quiet
+      - run: docker compose -f infra/compose/compose.staging.yml build api worker web
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Reject committed environment files
+        run: test -z "$(git ls-files | grep -E '(^|/)\.env($|\.)' | grep -vE '(^|/)\.env\.example$' || true)"
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26.9.0
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: 0.8.15
+      - run: npm --prefix apps/web audit --audit-level=high
+      - name: Audit API runtime dependencies
+        run: uv export --project apps/api --frozen --no-dev --no-emit-project | uvx --from pip-audit==2.9.0 pip-audit -r /dev/stdin
+      - name: Audit worker runtime dependencies
+        run: uv export --project apps/worker --frozen --no-dev --no-emit-project | uvx --from pip-audit==2.9.0 pip-audit -r /dev/stdin
+
+  commit-policy:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

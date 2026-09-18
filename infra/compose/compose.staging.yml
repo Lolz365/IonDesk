@@ -1,0 +1,215 @@
+name: visualops-enterprise
+
+x-python-environment: &python-environment
+  ENVIRONMENT: staging
+  DATABASE_URL:
+  REDIS_URL:
+  OBJECT_STORAGE_ENDPOINT: http://minio:9000
+  OBJECT_STORAGE_REGION: us-east-1
+  OBJECT_STORAGE_ACCESS_KEY:
+  OBJECT_STORAGE_SECRET_KEY:
+  OBJECT_STORAGE_BUCKET: visualops-private
+
+services:
+  postgres:
+    image: postgres:16.15-alpine3.24
+    user: postgres
+    environment:
+      POSTGRES_DB: visualops
+      POSTGRES_USER:
+      POSTGRES_PASSWORD:
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../postgres/init.sql:/docker-entrypoint-initdb.d/001-foundation.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d visualops"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks: [enterprise]
+
+  redis:
+    image: redis:7.4.11-alpine3.21
+    user: redis
+    environment:
+      REDIS_PASSWORD:
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$$REDIS_PASSWORD\" ping | grep PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+    networks: [enterprise]
+
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    user: "1000:1000"
+    environment:
+      MINIO_ROOT_USER:
+      MINIO_ROOT_PASSWORD:
+      MINIO_BROWSER: "off"
+      MINIO_REGION_NAME: us-east-1
+    command: ["server", "/data", "--address", ":9000"]
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks: [enterprise]
+
+  minio-bootstrap:
+    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+    user: "1000:1000"
+    environment:
+      MINIO_ROOT_USER:
+      MINIO_ROOT_PASSWORD:
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        mc mb --ignore-existing local/visualops-private
+        mc anonymous set none local/visualops-private
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: "no"
+    networks: [enterprise]
+
+  migrate:
+    image: visualops-enterprise-api:local
+    user: "10001:10001"
+    environment: *python-environment
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks: [enterprise]
+
+  api:
+    image: visualops-enterprise-api:local
+    build:
+      context: ../../apps/api
+    user: "10001:10001"
+    environment: *python-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio-bootstrap:
+        condition: service_completed_successfully
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks: [enterprise]
+
+  worker:
+    image: visualops-enterprise-worker:local
+    build:
+      context: ../../apps/worker
+    user: "10001:10001"
+    environment:
+      BROKER_URL:
+      RESULT_BACKEND:
+    command: ["celery", "-A", "app.runtime:celery_app", "worker", "--loglevel=INFO", "--queues=critical,default,media,analysis,exports,webhooks"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio-bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.runtime:celery_app inspect ping --destination celery@$$HOSTNAME --timeout 3 | grep pong"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+    networks: [enterprise]
+
+  beat:
+    image: visualops-enterprise-worker:local
+    user: "10001:10001"
+    environment:
+      BROKER_URL:
+      RESULT_BACKEND:
+    command: ["celery", "-A", "app.runtime:celery_app", "beat", "--loglevel=INFO", "--schedule=/tmp/celerybeat-schedule"]
+    depends_on:
+      redis:
+        condition: service_healthy
+      worker:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [enterprise]
+
+  web:
+    image: visualops-enterprise-web:local
+    build:
+      context: ../../apps/web
+    user: node
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks: [enterprise]
+
+  edge:
+    image: caddy:2.11.4-alpine
+    user: caddy
+    environment:
+      EDGE_BASIC_AUTH_HASH:
+    ports:
+      - "127.0.0.1:3181:8080"
+    volumes:
+      - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8080/edge-health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+    networks: [enterprise]
+
+volumes:
+  postgres-data:
+    name: visualops-enterprise-postgres-data
+  redis-data:
+    name: visualops-enterprise-redis-data
+  minio-data:
+    name: visualops-enterprise-minio-data
+
+networks:
+  enterprise:
+    name: visualops-enterprise-network
+    internal: true

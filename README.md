@@ -1,5 +1,77 @@
 # VisualOps
 
+VisualOps is evolving into an enterprise operations command center. Facilities
+and property operations is the confirmed initial product vertical.
+
+## Repository status
+
+The dependency-free Node.js application at the repository root remains the
+deployed `legacy-demo`. Its root `Dockerfile`, `docker-compose.yml`, and current
+Tailscale route remain independent of the enterprise foundation and must not be
+changed during this phase.
+
+The production-shaped foundation lives alongside it:
+
+- `apps/api`: FastAPI, tenant context, SQLAlchemy models, and Alembic migrations
+- `apps/worker`: Celery queue and scheduler configuration
+- `apps/web`: protected-edge command-center placeholder (no product workflows)
+- `infra/compose`: isolated PostgreSQL, Redis, MinIO, application, and Caddy
+  staging topology
+
+Architecture decisions are in `docs/architecture`. The current enterprise
+foundation includes tenant-scoped organization access, capability-based roles,
+append-only audit records, and a transactional outbox. OIDC, API-key issuance,
+work orders, and UI workflows remain later phases.
+
+## Enterprise foundation validation
+
+Copy the variable names from `infra/compose/.env.example` into an ignored
+`infra/compose/.env` and supply locally generated staging secrets and connection
+URLs. The example intentionally contains no values. Generate a Caddy-compatible
+password hash with `docker run --rm caddy:2.11.4-alpine caddy hash-password`.
+
+Validate without starting the stack:
+
+```sh
+docker compose -f infra/compose/compose.staging.yml config
+docker compose -f infra/compose/compose.staging.yml build api worker web
+```
+
+Caddy is the only published service, at `127.0.0.1:3181`. No Tailscale setup is
+part of this repository. See `CONTRIBUTING.md` for quality and change policies.
+
+## Database migrations
+
+API and worker processes never modify the schema. Staging Compose uses a
+separate one-shot `migrate` service and will not start the API until it succeeds.
+Set the required values in an ignored environment file, take a database backup,
+and inspect the pending revision before applying it once from `apps/api`:
+
+```sh
+uv sync --frozen --all-groups
+uv run alembic current
+uv run alembic upgrade head --sql > /tmp/visualops-upgrade.sql
+uv run alembic upgrade head
+uv run alembic current
+```
+
+For the staging image, build first and run the same one-off operation without
+starting dependencies or publishing ports:
+
+```sh
+docker compose -f infra/compose/compose.staging.yml build api
+docker compose -f infra/compose/compose.staging.yml run --rm --no-deps api alembic upgrade head
+```
+
+Run `alembic downgrade base` only against a disposable database when rehearsing
+rollback; it removes all foundation tables. Never run concurrent migrations
+from API or worker replicas. Tests use a temporary SQLite database for the fast
+transaction suite. To exercise the marked PostgreSQL suite, point
+`VISUALOPS_TEST_DATABASE_URL` at a disposable PostgreSQL database; each test
+uses and removes its own uniquely named schema.
+
+## Legacy demo
+
 VisualOps is a dependency-free Node.js vertical slice for maintenance tickets.
 It stores ticket records, photo metadata, and uploaded JPEG/PNG/WebP bytes on
 disk. Photo analysis is deterministic: the caller supplies labels and
