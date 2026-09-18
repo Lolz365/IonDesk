@@ -197,6 +197,9 @@ async function main(): Promise<void> {
   const photoStorage = await FilePhotoStorage.open(dataDir);
 
   const server = createServer(async (request, response) => {
+    response.setHeader("X-Content-Type-Options", "nosniff");
+    response.setHeader("X-Frame-Options", "DENY");
+    response.setHeader("Referrer-Policy", "no-referrer");
     const url = new URL(request.url ?? "/", "http://localhost");
     const pathname = url.pathname;
     try {

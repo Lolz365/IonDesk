@@ -70,6 +70,30 @@ test("serves health and an accessible single-page UI from the actual server", as
   }
 });
 
+test("sends baseline security headers for health responses", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
+  let server: RunningServer | undefined;
+  try {
+    server = await startServer(dataDir);
+    const response = await fetch(`${server.baseUrl}/health`);
+
+    assert.deepEqual(
+      Object.fromEntries(
+        ["x-content-type-options", "x-frame-options", "referrer-policy"]
+          .map((name) => [name, response.headers.get(name)]),
+      ),
+      {
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+      },
+    );
+  } finally {
+    if (server) await stopServer(server.process);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("serves a browser workflow wired to every ticket operation", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
   let server: RunningServer | undefined;
