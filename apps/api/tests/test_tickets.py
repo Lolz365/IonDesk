@@ -429,6 +429,49 @@ async def test_owner_creates_tenant_scoped_ticket_with_non_empty_title(
 
 
 @pytest.mark.anyio
+async def test_ticket_creation_rejects_title_containing_null_byte_without_write(
+    api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session, session.begin():
+        organization = Organization(identifier="null-title-org", name="Null Title Org")
+        owner = User(
+            oidc_subject="null-title-owner",
+            email="null-title-owner@example.test",
+            display_name="Null Title Owner",
+        )
+        session.add_all([organization, owner])
+        await session.flush()
+        membership = Membership(
+            organization_id=organization.id,
+            user_id=owner.id,
+            role=Role.OWNER,
+        )
+        session.add(membership)
+        await session.flush()
+        context = TenantContext(
+            organization_id=organization.id,
+            user_id=owner.id,
+            membership_id=membership.id,
+            role=Role.OWNER,
+            capabilities=capabilities_for_role(Role.OWNER),
+        )
+
+    client, set_context = api_client
+    set_context(context)
+    response = await client.post(
+        "/api/v1/tickets", json={"title": "Leaking\u0000valve"}
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
+    async with session_factory() as session:
+        ticket_count = await session.scalar(select(func.count()).select_from(Ticket))
+
+    assert ticket_count == 0
+
+
+@pytest.mark.anyio
 async def test_owner_ticket_creation_writes_audit_and_outbox_events(
     api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
     session_factory: async_sessionmaker[AsyncSession],
