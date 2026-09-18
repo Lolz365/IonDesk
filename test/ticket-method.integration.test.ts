@@ -67,3 +67,26 @@ test("DELETE /api/tickets reports the methods allowed for the known route", asyn
     await rm(dataDir, { recursive: true, force: true });
   }
 });
+
+test("DELETE /api/tickets/:id/resolve reports POST for the known nested route", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "visualops-ticket-method-"));
+  let server: RunningServer | undefined;
+  try {
+    server = await startServer(dataDir);
+    const response = await fetch(`${server.baseUrl}/api/tickets/missing/resolve`, {
+      method: "DELETE",
+    });
+
+    assert.equal(response.status, 405);
+    assert.equal(response.headers.get("allow"), "POST");
+    assert.deepEqual(await response.json(), {
+      error: {
+        code: "method_not_allowed",
+        message: "Method DELETE is not allowed for /api/tickets/:id/resolve",
+      },
+    });
+  } finally {
+    if (server) await stopServer(server.process);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});

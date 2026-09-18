@@ -318,6 +318,24 @@ async function main(): Promise<void> {
         sendJson(response, 200, await resolveTicket(repository, safeId(resolveMatch[1])));
         return;
       }
+      if (resolveMatch) {
+        let validTicketId = true;
+        try {
+          safeId(resolveMatch[1]);
+        } catch {
+          validTicketId = false;
+        }
+        if (validTicketId) {
+          response.setHeader("Allow", "POST");
+          sendJson(response, 405, {
+            error: {
+              code: "method_not_allowed",
+              message: `Method ${request.method} is not allowed for /api/tickets/:id/resolve`,
+            },
+          });
+          return;
+        }
+      }
       const ticketMatch = pathname.match(/^\/api\/tickets\/([^/]+)$/);
       if (request.method === "GET" && ticketMatch) {
         const id = safeId(ticketMatch[1]);
