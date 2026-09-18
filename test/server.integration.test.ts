@@ -94,6 +94,40 @@ test("sends baseline security headers for health responses", async () => {
   }
 });
 
+test("sends a restrictive Content-Security-Policy for health responses", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
+  let server: RunningServer | undefined;
+  try {
+    server = await startServer(dataDir);
+    const response = await fetch(`${server.baseUrl}/health`);
+
+    assert.equal(
+      response.headers.get("content-security-policy"),
+      "default-src 'none'; frame-ancestors 'none'",
+    );
+  } finally {
+    if (server) await stopServer(server.process);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("allows the inline UI assets in the root Content-Security-Policy", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
+  let server: RunningServer | undefined;
+  try {
+    server = await startServer(dataDir);
+    const response = await fetch(server.baseUrl);
+
+    assert.equal(
+      response.headers.get("content-security-policy"),
+      "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'",
+    );
+  } finally {
+    if (server) await stopServer(server.process);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("serves a browser workflow wired to every ticket operation", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
   let server: RunningServer | undefined;

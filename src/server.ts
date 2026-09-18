@@ -219,6 +219,7 @@ async function main(): Promise<void> {
   const photoStorage = await FilePhotoStorage.open(dataDir);
 
   const server = createServer(async (request, response) => {
+    response.setHeader("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'");
     response.setHeader("X-Content-Type-Options", "nosniff");
     response.setHeader("X-Frame-Options", "DENY");
     response.setHeader("Referrer-Policy", "no-referrer");
@@ -240,6 +241,7 @@ async function main(): Promise<void> {
         return;
       }
       if (request.method === "GET" && pathname === "/") {
+        response.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'");
         send(response, 200, "text/html; charset=utf-8", UI);
         return;
       }
