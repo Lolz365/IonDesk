@@ -227,6 +227,47 @@ async def test_unexpected_authentication_failure_returns_safe_error_envelope(
 
 
 @pytest.mark.anyio
+async def test_authenticated_rate_limit_backend_failure_fails_closed(
+    session_factory: async_sessionmaker[AsyncSession],
+    successful_probes: dict[str, Callable[[], Awaitable[None]]],
+) -> None:
+    class UnavailableRateLimiter:
+        async def check(
+            self, key: str, *, limit: int, window_seconds: int
+        ) -> None:
+            raise RuntimeError("redis unavailable")
+
+    organization = await seeded_org(session_factory)
+    app = create_app(
+        phase3_settings(),
+        probes=successful_probes,
+        session_factory=session_factory,
+        oidc_validator=AcceptOneToken(),
+        rate_limiter=UnavailableRateLimiter(),
+    )
+    async with AsyncClient(
+        transport=ASGITransport(app=app, raise_app_exceptions=False),
+        base_url="http://test",
+    ) as client:
+        response = await client.get(
+            f"/api/v1/organizations/{organization.id}",
+            headers={
+                "authorization": "Bearer signed-and-verified",
+                "x-organization-id": str(organization.id),
+            },
+        )
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "error": {
+            "code": "service_unavailable",
+            "message": "Service temporarily unavailable.",
+            "request_id": response.headers["x-request-id"],
+        }
+    }
+
+
+@pytest.mark.anyio
 async def test_rate_limits_have_request_id_envelopes_and_separate_bounds(
     session_factory: async_sessionmaker[AsyncSession],
     successful_probes: dict[str, Callable[[], Awaitable[None]]],

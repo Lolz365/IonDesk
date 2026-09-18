@@ -59,11 +59,18 @@ async def authenticate_request(
             raise RateLimitPassthrough from rate_error
         raise AuthenticationRequired from None
 
-    await limiter.check(
-        context.credential_id,
-        limit=settings.authenticated_rate_limit,
-        window_seconds=settings.rate_limit_window_seconds,
-    )
+    try:
+        await limiter.check(
+            context.credential_id,
+            limit=settings.authenticated_rate_limit,
+            window_seconds=settings.rate_limit_window_seconds,
+        )
+    except Exception as rate_error:
+        from app.services.rate_limits import RateLimitExceeded
+
+        if isinstance(rate_error, RateLimitExceeded):
+            raise
+        raise RateLimitPassthrough from rate_error
     await session.commit()
     request.state.tenant_context = context
     return context
