@@ -430,6 +430,45 @@ async def test_api_key_list_returns_metadata_without_secret_material(
 
 
 @pytest.mark.anyio
+async def test_api_key_cannot_list_api_key_metadata_even_with_manage_scope(
+    session_factory: async_sessionmaker[AsyncSession],
+    successful_probes: dict[str, Callable[[], Awaitable[None]]],
+) -> None:
+    organization = await seeded_org(session_factory)
+    app = create_app(
+        phase3_settings(),
+        probes=successful_probes,
+        session_factory=session_factory,
+        oidc_validator=AcceptOneToken(),
+        rate_limiter=DeterministicRateLimiter(),
+    )
+    oidc_headers = {
+        "authorization": "Bearer signed-and-verified",
+        "x-organization-id": str(organization.id),
+    }
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        issued = await client.post(
+            "/api/v1/api-keys",
+            headers=oidc_headers,
+            json={
+                "name": "Metadata Must Stay Hidden",
+                "scopes": [Capability.API_KEY_MANAGE],
+            },
+        )
+        response = await client.get(
+            "/api/v1/api-keys",
+            headers={"authorization": f"ApiKey {issued.json()['token']}"},
+        )
+
+    assert issued.status_code == 200
+    assert response.status_code == 403
+    assert "Metadata Must Stay Hidden" not in response.text
+    assert issued.json()["prefix"] not in response.text
+
+
+@pytest.mark.anyio
 async def test_api_key_list_response_disables_caching(
     session_factory: async_sessionmaker[AsyncSession],
     successful_probes: dict[str, Callable[[], Awaitable[None]]],

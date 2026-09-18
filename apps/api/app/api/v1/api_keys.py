@@ -124,6 +124,8 @@ async def get_api_keys(
     context: TenantDependency,
 ) -> list[APIKeyResponse]:
     require_capability(context, Capability.API_KEY_MANAGE)
+    if context.membership_id is None:
+        raise AuthorizationDenied
     models = await list_api_keys(session, context=context)
     response.headers["Cache-Control"] = "no-store"
     return [
