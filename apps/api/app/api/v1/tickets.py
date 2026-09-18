@@ -117,7 +117,7 @@ async def create_tenant_ticket(
             alias="Idempotency-Key",
             min_length=1,
             max_length=200,
-            pattern=r"\S",
+            pattern=r"^\S+$",
         ),
     ] = None,
 ) -> TicketResponse:

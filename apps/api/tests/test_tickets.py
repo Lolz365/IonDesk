@@ -504,9 +504,7 @@ async def test_ticket_creation_rejects_title_containing_newline_without_write(
 
     client, set_context = api_client
     set_context(context)
-    response = await client.post(
-        "/api/v1/tickets", json={"title": "Leaking\nvalve"}
-    )
+    response = await client.post("/api/v1/tickets", json={"title": "Leaking\nvalve"})
 
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "validation_error"
@@ -638,6 +636,58 @@ async def test_ticket_creation_replays_idempotent_response_without_duplicate_wri
 
 
 @pytest.mark.anyio
+async def test_ticket_creation_rejects_idempotency_key_containing_whitespace(
+    api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session, session.begin():
+        organization = Organization(
+            identifier="whitespace-key-org",
+            name="Whitespace Key Org",
+        )
+        owner = User(
+            oidc_subject="whitespace-key-owner",
+            email="whitespace-key-owner@example.test",
+            display_name="Whitespace Key Owner",
+        )
+        session.add_all([organization, owner])
+        await session.flush()
+        membership = Membership(
+            organization_id=organization.id,
+            user_id=owner.id,
+            role=Role.OWNER,
+        )
+        session.add(membership)
+        await session.flush()
+        context = TenantContext(
+            organization_id=organization.id,
+            user_id=owner.id,
+            membership_id=membership.id,
+            role=Role.OWNER,
+            capabilities=capabilities_for_role(Role.OWNER),
+        )
+
+    client, set_context = api_client
+    set_context(context)
+    response = await client.post(
+        "/api/v1/tickets",
+        headers={"Idempotency-Key": "create ticket 1"},
+        json={"title": "Leaking valve"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
+    async with session_factory() as session:
+        ticket_count = await session.scalar(select(func.count()).select_from(Ticket))
+        idempotency_count = await session.scalar(
+            select(func.count()).select_from(IdempotencyRecord)
+        )
+
+    assert ticket_count == 0
+    assert idempotency_count == 0
+
+
+@pytest.mark.anyio
 async def test_ticket_creation_rejects_duplicate_idempotency_key_headers_without_writes(
     api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
     session_factory: async_sessionmaker[AsyncSession],
@@ -699,7 +749,7 @@ async def test_ticket_creation_rejects_duplicate_idempotency_key_headers_without
 
 
 @pytest.mark.anyio
-async def test_ticket_status_transition_rejects_duplicate_idempotency_key_headers_without_writes(
+async def test_ticket_status_transition_rejects_duplicate_idempotency_key_headers(
     api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
@@ -751,9 +801,7 @@ async def test_ticket_status_transition_rejects_duplicate_idempotency_key_header
     assert response.json()["error"]["code"] == "validation_error"
     async with session_factory() as session:
         saved_ticket = await session.get(Ticket, ticket_id)
-        audit_count = await session.scalar(
-            select(func.count()).select_from(AuditEvent)
-        )
+        audit_count = await session.scalar(select(func.count()).select_from(AuditEvent))
         outbox_count = await session.scalar(
             select(func.count()).select_from(OutboxEvent)
         )
@@ -902,9 +950,7 @@ async def test_ticket_status_transition_replays_idempotent_request_once(
     assert replay.json() == first.json()
 
     async with session_factory() as session:
-        audit_count = await session.scalar(
-            select(func.count()).select_from(AuditEvent)
-        )
+        audit_count = await session.scalar(select(func.count()).select_from(AuditEvent))
         outbox_count = await session.scalar(
             select(func.count()).select_from(OutboxEvent)
         )
@@ -975,9 +1021,7 @@ async def test_ticket_status_transition_rejects_reused_key_for_different_payload
 
     async with session_factory() as session:
         saved_ticket = await session.get(Ticket, ticket_id)
-        audit_count = await session.scalar(
-            select(func.count()).select_from(AuditEvent)
-        )
+        audit_count = await session.scalar(select(func.count()).select_from(AuditEvent))
         outbox_count = await session.scalar(
             select(func.count()).select_from(OutboxEvent)
         )
