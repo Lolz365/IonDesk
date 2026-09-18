@@ -14,7 +14,7 @@ from app.services.authorization import (
     get_tenant_context,
     require_capability,
 )
-from app.services.tickets import create_ticket
+from app.services.tickets import create_ticket, list_tickets
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 SessionDependency = Annotated[AsyncSession, Depends(get_session)]
@@ -34,6 +34,16 @@ class TicketResponse(BaseModel):
     id: uuid.UUID
     organization_id: uuid.UUID
     title: str
+
+
+@router.get("", response_model=list[TicketResponse])
+async def list_tenant_tickets(
+    session: SessionDependency,
+    context: TenantDependency,
+) -> list[TicketResponse]:
+    require_capability(context, Capability.WORK_ORDER_READ)
+    tickets = await list_tickets(session, context=context)
+    return [TicketResponse.model_validate(ticket) for ticket in tickets]
 
 
 @router.post("", response_model=TicketResponse, status_code=status.HTTP_201_CREATED)

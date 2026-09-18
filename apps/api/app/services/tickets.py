@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Ticket
@@ -20,3 +21,14 @@ async def create_ticket(
     session.add(ticket)
     await session.flush()
     return ticket
+
+
+async def list_tickets(
+    session: AsyncSession,
+    *,
+    context: TenantContext,
+) -> list[Ticket]:
+    tickets = await session.scalars(
+        select(Ticket).where(Ticket.organization_id == context.organization_id)
+    )
+    return list(tickets)

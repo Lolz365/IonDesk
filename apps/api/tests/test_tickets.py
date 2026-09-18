@@ -8,8 +8,60 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models import Membership, Organization, User
+from app.models import Membership, Organization, Ticket, User
 from app.services.authorization import Role, TenantContext, capabilities_for_role
+
+
+@pytest.mark.anyio
+async def test_owner_lists_only_tickets_from_their_organization(
+    api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session, session.begin():
+        organization = Organization(identifier="owner-org", name="Owner Org")
+        other_organization = Organization(identifier="outside-org", name="Outside Org")
+        owner = User(
+            oidc_subject="listing-owner",
+            email="listing-owner@example.test",
+            display_name="Listing Owner",
+        )
+        session.add_all([organization, other_organization, owner])
+        await session.flush()
+        membership = Membership(
+            organization_id=organization.id,
+            user_id=owner.id,
+            role=Role.OWNER,
+        )
+        session.add_all(
+            [
+                membership,
+                Ticket(
+                    organization_id=organization.id,
+                    created_by_user_id=owner.id,
+                    title="Visible ticket",
+                ),
+                Ticket(
+                    organization_id=other_organization.id,
+                    created_by_user_id=owner.id,
+                    title="Other tenant ticket",
+                ),
+            ]
+        )
+        await session.flush()
+        owner_context = TenantContext(
+            organization_id=organization.id,
+            user_id=owner.id,
+            membership_id=membership.id,
+            role=Role.OWNER,
+            capabilities=capabilities_for_role(Role.OWNER),
+        )
+
+    client, set_context = api_client
+    set_context(owner_context)
+    response = await client.get("/api/v1/tickets")
+
+    assert response.status_code == 200
+    assert [ticket["title"] for ticket in response.json()] == ["Visible ticket"]
 
 
 @pytest.mark.anyio
