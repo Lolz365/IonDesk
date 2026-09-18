@@ -43,7 +43,7 @@ async def postgres_session_factory() -> AsyncIterator[async_sessionmaker[AsyncSe
             revision = await connection.scalar(
                 text("SELECT version_num FROM alembic_version")
             )
-        assert revision == "0001_tenant_foundation"
+        assert revision == "0003_ticket_initial_status"
         yield async_sessionmaker(engine, expire_on_commit=False)
     finally:
         await engine.dispose()

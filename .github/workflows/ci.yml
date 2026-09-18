@@ -35,6 +35,7 @@ jobs:
           --health-timeout 3s
           --health-retries 10
     env:
+      DATABASE_URL: postgresql+asyncpg://visualops_test:test-only@127.0.0.1:5432/visualops_test
       VISUALOPS_TEST_DATABASE_URL: postgresql+asyncpg://visualops_test:test-only@127.0.0.1:5432/visualops_test
     strategy:
       matrix:
@@ -52,6 +53,8 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy app
+      - if: matrix.app == 'api'
+        run: uv run alembic upgrade head
       - run: uv run pytest -W error
 
   openapi:
