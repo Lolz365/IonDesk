@@ -121,6 +121,49 @@ async def test_mutation_normalizes_name_before_response_audit_and_idempotency_ha
 
 
 @pytest.mark.anyio
+async def test_noop_mutation_persists_idempotency_replay_without_events(
+    api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    organization, context = await seed_owner(session_factory)
+    client, set_context = api_client
+    set_context(context)
+
+    response = await client.patch(
+        "/api/v1/organizations/current",
+        headers={"idempotency-key": "noop-rename-1"},
+        json={"name": "  Before  "},
+    )
+
+    assert response.status_code == 200
+    expected_response = {
+        "id": str(organization.id),
+        "identifier": organization.identifier,
+        "name": "Before",
+    }
+    assert response.json() == expected_response
+    async with session_factory() as session:
+        idempotency_record = await session.scalar(select(IdempotencyRecord))
+        audit_count = await session.scalar(select(func.count()).select_from(AuditEvent))
+        outbox_count = await session.scalar(
+            select(func.count()).select_from(OutboxEvent)
+        )
+    expected_request = json.dumps(
+        {"operation": "organization.rename", "name": "Before"},
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    assert idempotency_record is not None
+    assert idempotency_record.request_hash == hashlib.sha256(
+        expected_request.encode()
+    ).hexdigest()
+    assert idempotency_record.response_status == 200
+    assert idempotency_record.response_body == expected_response
+    assert audit_count == 0
+    assert outbox_count == 0
+
+
+@pytest.mark.anyio
 async def test_mutation_rolls_back_change_and_audit_when_outbox_insert_fails(
     api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
     session_factory: async_sessionmaker[AsyncSession],

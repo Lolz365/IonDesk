@@ -124,30 +124,31 @@ async def rename_current_organization(
                 context=context,
                 organization_id=context.organization_id,
             )
-            before: dict[str, object] = {"name": organization.name}
-            organization.name = name
-            record_audit_event(
-                session,
-                context=context,
-                object_type="organization",
-                object_id=organization.id,
-                action="organization.renamed",
-                before=before,
-                after={"name": name},
-                correlation_id=correlation_id,
-                source_ip=source_ip,
-                user_agent=user_agent,
-            )
-            enqueue_outbox_event(
-                session,
-                organization_id=context.organization_id,
-                aggregate_type="organization",
-                aggregate_id=organization.id,
-                event_type="organization.renamed",
-                payload={"organization_id": str(organization.id), "name": name},
-                idempotency_key=f"organization.renamed:{correlation_id}",
-            )
-            await session.flush()
+            if organization.name != name:
+                before: dict[str, object] = {"name": organization.name}
+                organization.name = name
+                record_audit_event(
+                    session,
+                    context=context,
+                    object_type="organization",
+                    object_id=organization.id,
+                    action="organization.renamed",
+                    before=before,
+                    after={"name": name},
+                    correlation_id=correlation_id,
+                    source_ip=source_ip,
+                    user_agent=user_agent,
+                )
+                enqueue_outbox_event(
+                    session,
+                    organization_id=context.organization_id,
+                    aggregate_type="organization",
+                    aggregate_id=organization.id,
+                    event_type="organization.renamed",
+                    payload={"organization_id": str(organization.id), "name": name},
+                    idempotency_key=f"organization.renamed:{correlation_id}",
+                )
+                await session.flush()
             if idempotency_record is not None:
                 idempotency_record.response_status = 200
                 idempotency_record.response_body = {
