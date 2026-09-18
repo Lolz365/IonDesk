@@ -265,6 +265,34 @@ test("uploads and retrieves supported photos while rejecting unsafe input", asyn
   }
 });
 
+test("rejects photo bytes that do not match the declared content type", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
+  let server: RunningServer | undefined;
+  try {
+    server = await startServer(dataDir);
+    const response = await fetch(`${server.baseUrl}/api/photos`, {
+      method: "POST",
+      headers: { "content-type": "image/jpeg" },
+      body: Buffer.from("not a jpeg"),
+    });
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), {
+      error: {
+        code: "validation_error",
+        message: "photo bytes do not match contentType image/jpeg",
+      },
+    });
+    assert.equal(
+      await readFile(join(dataDir, "photos.json"), "utf8").catch(() => undefined),
+      undefined,
+    );
+  } finally {
+    if (server) await stopServer(server.process);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("analyzes client-supplied signals with existing domain logic", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "visualops-server-"));
   let server: RunningServer | undefined;
@@ -273,7 +301,7 @@ test("analyzes client-supplied signals with existing domain logic", async () => 
     const uploadResponse = await fetch(`${server.baseUrl}/api/photos`, {
       method: "POST",
       headers: { "content-type": "image/png" },
-      body: Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+      body: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     });
     const photo = await uploadResponse.json() as { id: string };
     const ticketResponse = await fetch(`${server.baseUrl}/api/tickets`, {
@@ -314,7 +342,10 @@ test("persists ticket state, photo metadata, and image bytes across restart", as
   let server: RunningServer | undefined;
   try {
     server = await startServer(dataDir);
-    const bytes = Buffer.from([0x52, 0x49, 0x46, 0x46, 0x57, 0x45, 0x42, 0x50]);
+    const bytes = Buffer.from([
+      0x52, 0x49, 0x46, 0x46, 0x04, 0x00, 0x00, 0x00,
+      0x57, 0x45, 0x42, 0x50,
+    ]);
     const uploadResponse = await fetch(`${server.baseUrl}/api/photos`, {
       method: "POST",
       headers: { "content-type": "image/webp" },
