@@ -30,3 +30,6 @@ class Ticket(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         nullable=False,
     )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="new", server_default="new"
+    )

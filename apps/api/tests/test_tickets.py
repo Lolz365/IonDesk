@@ -65,6 +65,7 @@ async def test_owner_gets_own_ticket_but_not_another_organizations_ticket(
         "id": str(visible_ticket_id),
         "organization_id": str(organization.id),
         "title": "Visible ticket detail",
+        "status": "new",
     }
     assert hidden.status_code == 404
     assert hidden.json()["error"]["code"] == "ticket_not_found"
@@ -238,6 +239,7 @@ async def test_owner_creates_tenant_scoped_ticket_with_non_empty_title(
     assert denied.status_code == 403
     assert response.status_code == 201
     assert response.json()["title"] == "Leaking valve"
+    assert response.json()["status"] == "new"
 
     from app.models import Ticket
 
@@ -247,3 +249,4 @@ async def test_owner_creates_tenant_scoped_ticket_with_non_empty_title(
     assert len(tickets) == 1
     assert tickets[0].organization_id == organization.id
     assert tickets[0].title == "Leaking valve"
+    assert tickets[0].status == "new"

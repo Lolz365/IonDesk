@@ -34,6 +34,7 @@ class TicketResponse(BaseModel):
     id: uuid.UUID
     organization_id: uuid.UUID
     title: str
+    status: str
 
 
 @router.get("", response_model=list[TicketResponse])
