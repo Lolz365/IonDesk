@@ -253,6 +253,72 @@ async def test_owner_creates_tenant_scoped_ticket_with_non_empty_title(
 
 
 @pytest.mark.anyio
+async def test_owner_ticket_creation_writes_audit_and_outbox_events(
+    api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session, session.begin():
+        organization = Organization(identifier="creation-org", name="Creation Org")
+        owner = User(
+            oidc_subject="creation-owner",
+            email="creation-owner@example.test",
+            display_name="Creation Owner",
+        )
+        session.add_all([organization, owner])
+        await session.flush()
+        membership = Membership(
+            organization_id=organization.id,
+            user_id=owner.id,
+            role=Role.OWNER,
+        )
+        session.add(membership)
+        await session.flush()
+        context = TenantContext(
+            organization_id=organization.id,
+            user_id=owner.id,
+            membership_id=membership.id,
+            role=Role.OWNER,
+            capabilities=capabilities_for_role(Role.OWNER),
+        )
+
+    client, set_context = api_client
+    set_context(context)
+    request_id = uuid.uuid4()
+    response = await client.post(
+        "/api/v1/tickets",
+        headers={"x-request-id": str(request_id)},
+        json={"title": "  Leaking valve  "},
+    )
+
+    assert response.status_code == 201
+    ticket_id = uuid.UUID(response.json()["id"])
+    async with session_factory() as session:
+        audit_event = await session.scalar(select(AuditEvent))
+        outbox_event = await session.scalar(select(OutboxEvent))
+
+    assert audit_event is not None
+    assert audit_event.organization_id == organization.id
+    assert audit_event.actor_user_id == owner.id
+    assert audit_event.object_type == "ticket"
+    assert audit_event.object_id == ticket_id
+    assert audit_event.action == "ticket.created"
+    assert audit_event.before is None
+    assert audit_event.after == {"title": "Leaking valve", "status": "new"}
+    assert audit_event.correlation_id == request_id
+    assert outbox_event is not None
+    assert outbox_event.organization_id == organization.id
+    assert outbox_event.aggregate_type == "ticket"
+    assert outbox_event.aggregate_id == ticket_id
+    assert outbox_event.event_type == "ticket.created"
+    assert outbox_event.payload == {
+        "ticket_id": str(ticket_id),
+        "title": "Leaking valve",
+        "status": "new",
+    }
+    assert outbox_event.idempotency_key == f"ticket.created:{ticket_id}:{request_id}"
+
+
+@pytest.mark.anyio
 async def test_dispatcher_assigns_new_ticket(
     api_client: tuple[AsyncClient, Callable[[TenantContext], None]],
     session_factory: async_sessionmaker[AsyncSession],

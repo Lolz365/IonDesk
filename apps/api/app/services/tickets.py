@@ -23,6 +23,9 @@ async def create_ticket(
     *,
     context: TenantContext,
     title: str,
+    correlation_id: uuid.UUID,
+    source_ip: str | None,
+    user_agent: str | None,
 ) -> Ticket:
     ticket = Ticket(
         organization_id=context.organization_id,
@@ -30,6 +33,29 @@ async def create_ticket(
         title=title,
     )
     session.add(ticket)
+    await session.flush()
+    after: dict[str, object] = {"title": ticket.title, "status": ticket.status}
+    record_audit_event(
+        session,
+        context=context,
+        object_type="ticket",
+        object_id=ticket.id,
+        action="ticket.created",
+        before=None,
+        after=after,
+        correlation_id=correlation_id,
+        source_ip=source_ip,
+        user_agent=user_agent,
+    )
+    enqueue_outbox_event(
+        session,
+        organization_id=context.organization_id,
+        aggregate_type="ticket",
+        aggregate_id=ticket.id,
+        event_type="ticket.created",
+        payload={"ticket_id": str(ticket.id), **after},
+        idempotency_key=f"ticket.created:{ticket.id}:{correlation_id}",
+    )
     await session.flush()
     return ticket
 

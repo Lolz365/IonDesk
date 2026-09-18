@@ -70,11 +70,19 @@ async def get_tenant_ticket(
 @router.post("", response_model=TicketResponse, status_code=status.HTTP_201_CREATED)
 async def create_tenant_ticket(
     body: TicketCreate,
+    request: Request,
     session: SessionDependency,
     context: TenantDependency,
 ) -> TicketResponse:
     require_capability(context, Capability.WORK_ORDER_CREATE)
-    ticket = await create_ticket(session, context=context, title=body.title)
+    ticket = await create_ticket(
+        session,
+        context=context,
+        title=body.title,
+        correlation_id=uuid.UUID(request.state.request_id),
+        source_ip=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
     await session.commit()
     return TicketResponse.model_validate(ticket)
 
